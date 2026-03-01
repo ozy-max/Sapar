@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TripsController } from './controllers/trips.controller';
 import { BookingsController } from './controllers/bookings.controller';
 import { InternalEventsController } from './controllers/internal-events.controller';
+import { BffReadController } from './controllers/bff-read.controller';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { HmacGuard } from './guards/hmac.guard';
 import { CreateTripUseCase } from '../../application/create-trip.usecase';
@@ -13,7 +14,7 @@ import { OnPaymentHoldPlacedHandler } from '../../application/handlers/on-paymen
 import { OnPaymentIntentFailedHandler } from '../../application/handlers/on-payment-intent-failed.handler';
 
 @Module({
-  controllers: [TripsController, BookingsController, InternalEventsController],
+  controllers: [TripsController, BookingsController, InternalEventsController, BffReadController],
   providers: [
     JwtAuthGuard,
     HmacGuard,

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { HealthController } from './adapters/http/health.controller';
 import { PrismaService } from './adapters/db/prisma.service';
 import { ProxyModule } from './adapters/http/proxy/proxy.module';
+import { BffModule } from './adapters/http/bff/bff.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { normalizeRoute } from './observability/route-normalizer';
 import { loadEnv } from './config/env';
@@ -37,6 +38,7 @@ import { loadEnv } from './config/env';
       },
     }),
     ProxyModule,
+    BffModule,
     ObservabilityModule,
   ],
   controllers: [HealthController],

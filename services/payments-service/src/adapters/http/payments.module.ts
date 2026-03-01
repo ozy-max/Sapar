@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { IntentsController } from './controllers/intents.controller';
 import { WebhooksController } from './controllers/webhooks.controller';
 import { InternalEventsController } from './controllers/internal-events.controller';
+import { BffReadController } from './controllers/bff-read.controller';
 import { CreateIntentUseCase } from '../../application/create-intent.usecase';
 import { CaptureIntentUseCase } from '../../application/capture-intent.usecase';
 import { CancelIntentUseCase } from '../../application/cancel-intent.usecase';
@@ -13,7 +14,7 @@ import { OnBookingCancelledHandler } from '../../application/handlers/on-booking
 import { HmacGuard } from './guards/hmac.guard';
 
 @Module({
-  controllers: [IntentsController, WebhooksController, InternalEventsController],
+  controllers: [IntentsController, WebhooksController, InternalEventsController, BffReadController],
   providers: [
     CreateIntentUseCase,
     CaptureIntentUseCase,

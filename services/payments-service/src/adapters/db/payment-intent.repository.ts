@@ -79,6 +79,17 @@ export class PaymentIntentRepository {
     });
   }
 
+  async findByBookingId(bookingId: string): Promise<PaymentIntent | null> {
+    return this.prisma.paymentIntent.findUnique({ where: { bookingId } });
+  }
+
+  async findByBookingIds(bookingIds: string[]): Promise<PaymentIntent[]> {
+    if (bookingIds.length === 0) return [];
+    return this.prisma.paymentIntent.findMany({
+      where: { bookingId: { in: bookingIds } },
+    });
+  }
+
   async findByPspIntentId(pspIntentId: string): Promise<PaymentIntent | null> {
     return this.prisma.paymentIntent.findFirst({
       where: { pspIntentId },

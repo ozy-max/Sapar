@@ -29,6 +29,7 @@ const envSchema = z
     ADMIN_BASE_URL: z.string().url('ADMIN_BASE_URL must be a valid URL'),
 
     HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+    BFF_TIMEOUT_MS: z.coerce.number().int().positive().default(2500),
     MAX_BODY_BYTES: z.coerce.number().int().positive().default(1_048_576),
 
     REDIS_URL: z.string().min(1).optional(),

@@ -44,6 +44,7 @@ services:
       NOTIFICATIONS_BASE_URL: http://notifications-service:3004
       ADMIN_BASE_URL: http://admin-service:3005
       HTTP_TIMEOUT_MS: 3000
+      BFF_TIMEOUT_MS: 2500
       MAX_BODY_BYTES: 1048576
       REDIS_URL: redis://redis:6379/0
       REDIS_TIMEOUT_MS: 500
