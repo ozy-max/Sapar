@@ -1,0 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Placeholder — Prisma requires ≥1 model to generate the client.
+// Will be replaced by real domain models when the gateway owns data.
+model Placeholder {
+  id Int @id @default(1)
+
+  @@map("_placeholder")
+}

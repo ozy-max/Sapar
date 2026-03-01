@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_DB: sapar_gateway
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_gateway']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://sapar:sapar_secret@postgres:5432/sapar_gateway
+      NODE_ENV: development
+      LOG_LEVEL: info
+      IDENTITY_BASE_URL: http://identity-service:3001
+      TRIPS_BASE_URL: http://trips-service:3002
+      PAYMENTS_BASE_URL: http://payments-service:3003
+      HTTP_TIMEOUT_MS: 3000
+      MAX_BODY_BYTES: 1048576
+      REDIS_URL: redis://redis:6379/0
+      REDIS_TIMEOUT_MS: 500
+      TRUST_PROXY: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  identity-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_DB: sapar_identity
+    ports:
+      - '5433:5432'
+    volumes:
+      - identity-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_identity']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  identity-service:
+    build:
+      context: ./services/identity-service
+      dockerfile: Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://sapar:sapar_secret@identity-postgres:5432/sapar_identity
+      NODE_ENV: development
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
+      JWT_ACCESS_TTL_SEC: 900
+      REFRESH_TOKEN_TTL_SEC: 2592000
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  identity-pgdata:
