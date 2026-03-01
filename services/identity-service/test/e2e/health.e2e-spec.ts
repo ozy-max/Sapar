@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { createTestApp, TestContext } from './helpers/test-app';
 import { resetEnvCache } from '../../src/config/env';
 
