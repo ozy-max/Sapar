@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { PaymentIntentRepository } from '../adapters/db/payment-intent.repository';
 import { PaymentEventRepository } from '../adapters/db/payment-event.repository';
+import { OutboxService } from '../shared/outbox.service';
 import { PSP_ADAPTER, PspAdapter } from '../adapters/psp/psp.interface';
 import { loadEnv } from '../config/env';
 import { withTimeout } from '../shared/psp-timeout';
@@ -16,6 +17,7 @@ export interface CreateIntentInput {
   amountKgs: number;
   payerId: string;
   idempotencyKey?: string;
+  traceId: string;
 }
 
 export interface CreateIntentOutput {
@@ -32,6 +34,7 @@ export class CreateIntentUseCase {
     private readonly prisma: PrismaService,
     private readonly intentRepo: PaymentIntentRepository,
     private readonly eventRepo: PaymentEventRepository,
+    private readonly outboxService: OutboxService,
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
@@ -111,6 +114,20 @@ export class CreateIntentUseCase {
           paymentIntentId: intent.id,
           type: 'HOLD_PLACED',
           payloadJson: { pspIntentId },
+        },
+        tx,
+      );
+
+      await this.outboxService.publish(
+        {
+          eventType: 'payment.intent.hold_placed',
+          payload: {
+            paymentIntentId: intent.id,
+            bookingId: input.bookingId,
+            passengerId: input.payerId,
+            amountKgs: input.amountKgs,
+          },
+          traceId: input.traceId,
         },
         tx,
       );

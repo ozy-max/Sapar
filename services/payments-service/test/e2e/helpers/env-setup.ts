@@ -10,3 +10,5 @@ process.env['PAYMENTS_WEBHOOK_SECRET'] = 'test-webhook-secret';
 process.env['RECEIPT_RETRY_N'] = '3';
 process.env['RECEIPT_BACKOFF_SEC_LIST'] = '0,0,0';
 process.env['RECEIPT_POLL_INTERVAL_MS'] = '60000';
+process.env['EVENTS_HMAC_SECRET'] = 'test-hmac-secret-at-least-32-characters-long!!';
+process.env['OUTBOX_TARGETS'] = '';

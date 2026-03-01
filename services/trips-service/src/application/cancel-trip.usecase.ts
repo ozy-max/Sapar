@@ -2,11 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { TripStatus, BookingStatus } from '@prisma/client';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { TripRepository } from '../adapters/db/trip.repository';
+import { OutboxService } from '../shared/outbox.service';
 import { TripNotFoundError, TripNotActiveError, ForbiddenError } from '../shared/errors';
 
 interface CancelTripInput {
   tripId: string;
   userId: string;
+  traceId: string;
 }
 
 interface CancelTripOutput {
@@ -21,6 +23,7 @@ export class CancelTripUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tripRepo: TripRepository,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async execute(input: CancelTripInput): Promise<CancelTripOutput> {
@@ -43,6 +46,18 @@ export class CancelTripUseCase {
         where: { tripId: input.tripId, status: BookingStatus.ACTIVE },
         data: { status: BookingStatus.CANCELLED },
       });
+
+      await this.outboxService.publish(
+        {
+          eventType: 'trip.cancelled',
+          payload: {
+            tripId: input.tripId,
+            driverId: trip.driverId,
+          },
+          traceId: input.traceId,
+        },
+        tx,
+      );
     });
 
     this.logger.log(`Trip cancelled: tripId=${input.tripId} by driverId=${input.userId}`);

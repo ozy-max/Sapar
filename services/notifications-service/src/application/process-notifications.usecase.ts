@@ -1,7 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { NotificationRepository } from '../adapters/db/notification.repository';
 import { NotificationEventRepository } from '../adapters/db/notification-event.repository';
+import { OutboxService } from '../shared/outbox.service';
 import {
   SMS_PROVIDER,
   EMAIL_PROVIDER,
@@ -35,6 +37,7 @@ export class ProcessNotificationsUseCase {
     private readonly prisma: PrismaService,
     private readonly notifRepo: NotificationRepository,
     private readonly eventRepo: NotificationEventRepository,
+    private readonly outboxService: OutboxService,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @Inject(PUSH_PROVIDER) private readonly push: PushProvider,
@@ -103,6 +106,19 @@ export class ProcessNotificationsUseCase {
               tx,
             );
 
+            await this.outboxService.publish(
+              {
+                eventType: 'notification.sent',
+                payload: {
+                  notificationId: row.id,
+                  userId: row.user_id,
+                  channel: row.channel,
+                },
+                traceId: randomUUID(),
+              },
+              tx,
+            );
+
             result.sent++;
             chStats.sent++;
             this.logger.log(`Notification ${row.id} sent on try ${nextTry}`);
@@ -124,6 +140,20 @@ export class ProcessNotificationsUseCase {
                 },
                 tx,
               );
+              await this.outboxService.publish(
+                {
+                  eventType: 'notification.failed_final',
+                  payload: {
+                    notificationId: row.id,
+                    userId: row.user_id,
+                    channel: row.channel,
+                    error: errorMsg,
+                  },
+                  traceId: randomUUID(),
+                },
+                tx,
+              );
+
               result.failedFinal++;
               chStats.failedFinal++;
               this.logger.error(

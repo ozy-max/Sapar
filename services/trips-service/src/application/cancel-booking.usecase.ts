@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { BookingRepository } from '../adapters/db/booking.repository';
 import { TripRepository } from '../adapters/db/trip.repository';
+import { OutboxService } from '../shared/outbox.service';
 import {
   BookingNotFoundError,
   BookingNotActiveError,
@@ -13,6 +14,7 @@ import {
 interface CancelBookingInput {
   bookingId: string;
   userId: string;
+  traceId: string;
 }
 
 interface CancelBookingOutput {
@@ -28,6 +30,7 @@ export class CancelBookingUseCase {
     private readonly prisma: PrismaService,
     private readonly bookingRepo: BookingRepository,
     private readonly tripRepo: TripRepository,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async execute(input: CancelBookingInput): Promise<CancelBookingOutput> {
@@ -59,6 +62,20 @@ export class CancelBookingUseCase {
           where: { id: booking.tripId },
           data: { seatsAvailable: { increment: freshBooking.seats } },
         });
+
+        await this.outboxService.publish(
+          {
+            eventType: 'booking.cancelled',
+            payload: {
+              bookingId: input.bookingId,
+              tripId: booking.tripId,
+              passengerId: booking.passengerId,
+              seats: freshBooking.seats,
+            },
+            traceId: input.traceId,
+          },
+          tx,
+        );
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,

@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { PaymentIntentRepository } from '../adapters/db/payment-intent.repository';
 import { PaymentEventRepository } from '../adapters/db/payment-event.repository';
+import { OutboxService } from '../shared/outbox.service';
 import { PSP_ADAPTER, PspAdapter } from '../adapters/psp/psp.interface';
 import { loadEnv } from '../config/env';
 import { withTimeout } from '../shared/psp-timeout';
@@ -19,10 +20,11 @@ export class RefundIntentUseCase {
     private readonly prisma: PrismaService,
     private readonly intentRepo: PaymentIntentRepository,
     private readonly eventRepo: PaymentEventRepository,
+    private readonly outboxService: OutboxService,
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async execute(intentId: string): Promise<{ status: string }> {
+  async execute(intentId: string, traceId = ''): Promise<{ status: string }> {
     const env = loadEnv();
 
     return this.prisma.$transaction(
@@ -53,6 +55,19 @@ export class RefundIntentUseCase {
             paymentIntentId: intentId,
             type: 'REFUNDED',
             payloadJson: { pspIntentId: row.psp_intent_id },
+          },
+          tx,
+        );
+
+        await this.outboxService.publish(
+          {
+            eventType: 'payment.refunded',
+            payload: {
+              paymentIntentId: intentId,
+              bookingId: row.booking_id,
+              amountKgs: row.amount_kgs,
+            },
+            traceId,
           },
           tx,
         );

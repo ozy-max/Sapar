@@ -1,4 +1,4 @@
-import { Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Post, Param, Headers, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -24,7 +24,8 @@ export class BookingsController {
   async cancel(
     @Param('bookingId') bookingId: string,
     @CurrentUser() userId: string,
+    @Headers('x-request-id') traceId?: string,
   ): Promise<{ bookingId: string; status: string }> {
-    return this.cancelBooking.execute({ bookingId, userId });
+    return this.cancelBooking.execute({ bookingId, userId, traceId: traceId ?? '' });
   }
 }

@@ -64,3 +64,28 @@ model IdempotencyRecord {
   @@unique([key, userId])
   @@map("idempotency_records")
 }
+
+enum OutboxEventStatus {
+  PENDING
+  SENT
+  FAILED_RETRY
+  FAILED_FINAL
+}
+
+model OutboxEvent {
+  id          String            @id @db.Uuid
+  eventType   String            @map("event_type")
+  payloadJson Json              @map("payload_json")
+  occurredAt  DateTime          @map("occurred_at")
+  traceId     String            @map("trace_id")
+  status      OutboxEventStatus @default(PENDING)
+  tryCount    Int               @default(0) @map("try_count")
+  nextRetryAt DateTime          @default(now()) @map("next_retry_at")
+  lastError   String?           @map("last_error")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, nextRetryAt])
+  @@index([eventType])
+  @@map("outbox_events")
+}

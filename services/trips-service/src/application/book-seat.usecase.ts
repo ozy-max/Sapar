@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { IdempotencyRepository } from '../adapters/db/idempotency.repository';
+import { OutboxService } from '../shared/outbox.service';
 import {
   TripNotFoundError,
   TripNotActiveError,
@@ -14,6 +15,7 @@ interface BookSeatInput {
   passengerId: string;
   seats: number;
   idempotencyKey?: string;
+  traceId: string;
 }
 
 interface BookSeatOutput {
@@ -29,6 +31,7 @@ export class BookSeatUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idempotencyRepo: IdempotencyRepository,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async execute(input: BookSeatInput): Promise<BookSeatOutput> {
@@ -86,6 +89,21 @@ export class BookSeatUseCase {
             },
           });
         }
+
+        await this.outboxService.publish(
+          {
+            eventType: 'booking.created',
+            payload: {
+              bookingId: booking.id,
+              tripId: input.tripId,
+              passengerId: input.passengerId,
+              seats: input.seats,
+              priceKgs: trip.priceKgs,
+            },
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
         return output;
       },

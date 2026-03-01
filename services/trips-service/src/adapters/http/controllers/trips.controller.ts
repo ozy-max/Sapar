@@ -97,12 +97,14 @@ export class TripsController {
     @CurrentUser() userId: string,
     @Body(new ZodValidationPipe(bookSeatSchema)) input: BookSeatInput,
     @Headers('idempotency-key') idempotencyKey?: string,
+    @Headers('x-request-id') traceId?: string,
   ): Promise<BookSeatResponseDto> {
     return this.bookSeat.execute({
       tripId,
       passengerId: userId,
       seats: input.seats,
       idempotencyKey,
+      traceId: traceId ?? '',
     });
   }
 
@@ -120,7 +122,8 @@ export class TripsController {
   async cancel(
     @Param('tripId') tripId: string,
     @CurrentUser() userId: string,
+    @Headers('x-request-id') traceId?: string,
   ): Promise<{ tripId: string; status: string }> {
-    return this.cancelTrip.execute({ tripId, userId });
+    return this.cancelTrip.execute({ tripId, userId, traceId: traceId ?? '' });
   }
 }

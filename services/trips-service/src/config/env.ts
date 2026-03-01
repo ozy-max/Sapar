@@ -17,6 +17,13 @@ const envSchema = z
       .default('info'),
 
     JWT_ACCESS_SECRET: z.string().min(1),
+
+    OUTBOX_WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+    OUTBOX_RETRY_N: z.coerce.number().int().positive().default(5),
+    OUTBOX_BACKOFF_SEC_LIST: z.string().default('5,30,120,300,900'),
+    OUTBOX_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+    EVENTS_HMAC_SECRET: z.string().min(1).default('hmac-secret-for-dev-at-least-32-chars!!'),
+    OUTBOX_TARGETS: z.string().default(''),
   })
   .superRefine((_val, ctx) => {
     if (
@@ -54,4 +61,22 @@ export function loadEnv(): Env {
 
 export function resetEnvCache(): void {
   cached = undefined;
+}
+
+export function getOutboxBackoffSchedule(): number[] {
+  const env = loadEnv();
+  return env.OUTBOX_BACKOFF_SEC_LIST.split(',').map((s) => parseInt(s.trim(), 10));
+}
+
+export function parseOutboxTargets(raw: string): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!raw) return map;
+  for (const pair of raw.split(',')) {
+    const idx = pair.indexOf('>');
+    if (idx === -1) continue;
+    const eventType = pair.slice(0, idx).trim();
+    const url = pair.slice(idx + 1).trim();
+    if (eventType && url) map.set(eventType, url);
+  }
+  return map;
 }

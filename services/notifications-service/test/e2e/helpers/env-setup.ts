@@ -9,3 +9,5 @@ process.env['NOTIF_RETRY_N'] = '3';
 process.env['NOTIF_BACKOFF_SEC_LIST'] = '0,0,0';
 process.env['WORKER_INTERVAL_MS'] = '60000';
 process.env['PROVIDER_TIMEOUT_MS'] = '3000';
+process.env['EVENTS_HMAC_SECRET'] = 'test-hmac-secret-at-least-32-characters-long!!';
+process.env['OUTBOX_TARGETS'] = '';
