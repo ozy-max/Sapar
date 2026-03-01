@@ -64,48 +64,51 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async expireBooking(bookingId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`
         SELECT id FROM trips
         WHERE id = (SELECT trip_id FROM bookings WHERE id = ${bookingId}::uuid)
         FOR UPDATE
       `;
 
-      const locked = await tx.$queryRaw<BookingRow[]>`
+        const locked = await tx.$queryRaw<BookingRow[]>`
         SELECT id, trip_id, passenger_id, seats, status, created_at, updated_at
         FROM bookings
         WHERE id = ${bookingId}::uuid
           AND status = 'PENDING_PAYMENT'::"BookingStatus"
         FOR UPDATE SKIP LOCKED
       `;
-      const row = locked[0];
-      if (!row) return;
+        const row = locked[0];
+        if (!row) return;
 
-      await tx.booking.update({
-        where: { id: bookingId },
-        data: { status: 'EXPIRED' },
-      });
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: { status: 'EXPIRED' },
+        });
 
-      await tx.$executeRaw`
+        await tx.$executeRaw`
         UPDATE trips SET seats_available = seats_available + ${row.seats}
         WHERE id = ${row.trip_id}::uuid
       `;
 
-      await this.outboxService.publish(
-        {
-          eventType: 'booking.expired',
-          payload: {
-            bookingId: row.id,
-            tripId: row.trip_id,
-            passengerId: row.passenger_id,
-            seats: row.seats,
-            reason: 'EXPIRED',
+        await this.outboxService.publish(
+          {
+            eventType: 'booking.expired',
+            payload: {
+              bookingId: row.id,
+              tripId: row.trip_id,
+              passengerId: row.passenger_id,
+              seats: row.seats,
+              reason: 'EXPIRED',
+            },
+            traceId: randomUUID(),
           },
-          traceId: randomUUID(),
-        },
-        tx,
-      );
-    }, { timeout: 10_000 });
+          tx,
+        );
+      },
+      { timeout: 10_000 },
+    );
 
     recordBookingExpired();
     recordBookingTransition('PENDING_PAYMENT', 'EXPIRED');

@@ -36,9 +36,7 @@ describe('Admin — Role assignment (e2e)', () => {
   const targetUser = { email: 'target@example.com', password: 'securepass123' };
 
   async function registerUser(user: { email: string; password: string }): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(user);
+    const res = await request(app.getHttpServer()).post('/auth/register').send(user);
     return res.body.userId;
   }
 
@@ -107,9 +105,7 @@ describe('Admin — Role assignment (e2e)', () => {
 
       await prisma.user.update({ where: { id: userId }, data: { roles: ['ADMIN'] } });
 
-      const loginRes = await request(app.getHttpServer())
-        .post('/auth/login')
-        .send(testUser);
+      const loginRes = await request(app.getHttpServer()).post('/auth/login').send(testUser);
 
       expect(loginRes.status).toBe(200);
 
@@ -126,9 +122,7 @@ describe('Admin — Role assignment (e2e)', () => {
       const userId = await registerUser(testUser);
       await prisma.user.update({ where: { id: userId }, data: { roles: ['SUPPORT'] } });
 
-      const loginRes = await request(app.getHttpServer())
-        .post('/auth/login')
-        .send(testUser);
+      const loginRes = await request(app.getHttpServer()).post('/auth/login').send(testUser);
 
       const refreshRes = await request(app.getHttpServer())
         .post('/auth/refresh')

@@ -25,23 +25,33 @@ export class BanUserUseCase {
 
   async execute(input: BanUserInput): Promise<{ commandId: string; status: string }> {
     const command = await this.prisma.$transaction(async (tx) => {
-      const cmd = await this.commandRepo.create({
-        targetService: 'identity',
-        type: AdminCommandType.BAN_USER,
-        payload: { userId: input.userId, reason: input.reason, until: input.until },
-        createdBy: input.actorUserId,
-        traceId: input.traceId,
-      }, tx);
+      const cmd = await this.commandRepo.create(
+        {
+          targetService: 'identity',
+          type: AdminCommandType.BAN_USER,
+          payload: {
+            userId: input.userId,
+            reason: input.reason,
+            until: input.until,
+          },
+          createdBy: input.actorUserId,
+          traceId: input.traceId,
+        },
+        tx,
+      );
 
-      await this.auditLogRepo.create({
-        actorUserId: input.actorUserId,
-        actorRoles: input.actorRoles,
-        action: 'USER_BAN',
-        targetType: 'User',
-        targetId: input.userId,
-        payloadJson: { reason: input.reason, until: input.until },
-        traceId: input.traceId,
-      }, tx);
+      await this.auditLogRepo.create(
+        {
+          actorUserId: input.actorUserId,
+          actorRoles: input.actorRoles,
+          action: 'USER_BAN',
+          targetType: 'User',
+          targetId: input.userId,
+          payloadJson: { reason: input.reason, until: input.until },
+          traceId: input.traceId,
+        },
+        tx,
+      );
 
       return cmd;
     });

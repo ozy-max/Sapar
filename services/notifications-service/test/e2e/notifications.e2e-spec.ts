@@ -50,7 +50,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-1', route: 'Bishkek → Osh', date: '2026-04-01', userName: 'Test' },
+          payload: {
+            bookingId: 'b-1',
+            route: 'Bishkek → Osh',
+            date: '2026-04-01',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -99,7 +104,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-3', route: 'Bishkek → Osh', date: '2026-04-03', userName: 'Test' },
+          payload: {
+            bookingId: 'b-3',
+            route: 'Bishkek → Osh',
+            date: '2026-04-03',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -131,7 +141,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-4', route: 'Bishkek → Osh', date: '2026-04-04', userName: 'Test' },
+          payload: {
+            bookingId: 'b-4',
+            route: 'Bishkek → Osh',
+            date: '2026-04-04',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -159,7 +174,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-5', route: 'Bishkek → Osh', date: '2026-04-05', userName: 'Test' },
+          payload: {
+            bookingId: 'b-5',
+            route: 'Bishkek → Osh',
+            date: '2026-04-05',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -197,7 +217,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-6', route: 'Bishkek → Osh', date: '2026-04-06', userName: 'Test' },
+          payload: {
+            bookingId: 'b-6',
+            route: 'Bishkek → Osh',
+            date: '2026-04-06',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -238,7 +263,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-own-1', route: 'Bishkek → Osh', date: '2026-04-10', userName: 'Test' },
+          payload: {
+            bookingId: 'b-own-1',
+            route: 'Bishkek → Osh',
+            date: '2026-04-10',
+            userName: 'Test',
+          },
         })
         .expect(201);
 
@@ -260,7 +290,12 @@ describe('Notifications (e2e)', () => {
           userId,
           channel: 'EMAIL',
           templateKey: 'BOOKING_CONFIRMED',
-          payload: { bookingId: 'b-own-2', route: 'Bishkek → Osh', date: '2026-04-11', userName: 'Test' },
+          payload: {
+            bookingId: 'b-own-2',
+            route: 'Bishkek → Osh',
+            date: '2026-04-11',
+            userName: 'Test',
+          },
         })
         .expect(201);
 

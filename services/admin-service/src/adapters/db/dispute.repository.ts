@@ -23,11 +23,7 @@ export class DisputeRepository {
     return this.prisma.dispute.findUnique({ where: { id } });
   }
 
-  async resolve(
-    id: string,
-    resolution: DisputeResolution,
-    resolvedBy: string,
-  ): Promise<Dispute> {
+  async resolve(id: string, resolution: DisputeResolution, resolvedBy: string): Promise<Dispute> {
     return this.prisma.dispute.update({
       where: { id },
       data: {

@@ -37,10 +37,7 @@ export class RegisterUserUseCase {
     try {
       user = await this.userRepo.create({ email, passwordHash });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new EmailTakenError();
       }
       throw error;

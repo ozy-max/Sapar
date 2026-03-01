@@ -5,9 +5,19 @@ import { LoginUserUseCase } from '../../../application/login-user.usecase';
 import { RefreshSessionUseCase } from '../../../application/refresh-session.usecase';
 import { LogoutUseCase } from '../../../application/logout.usecase';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
-import { registerSchema, RegisterInput, RegisterBodyDto, RegisterResponseDto } from '../dto/register.dto';
+import {
+  registerSchema,
+  RegisterInput,
+  RegisterBodyDto,
+  RegisterResponseDto,
+} from '../dto/register.dto';
 import { loginSchema, LoginInput, LoginBodyDto, LoginResponseDto } from '../dto/login.dto';
-import { refreshSchema, RefreshInput, RefreshBodyDto, RefreshResponseDto } from '../dto/refresh.dto';
+import {
+  refreshSchema,
+  RefreshInput,
+  RefreshBodyDto,
+  RefreshResponseDto,
+} from '../dto/refresh.dto';
 import { logoutSchema, LogoutInput, LogoutBodyDto } from '../dto/logout.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
 
@@ -64,9 +74,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout (invalidate refresh token)' })
   @ApiBody({ type: LogoutBodyDto })
   @ApiResponse({ status: 204, description: 'Logged out successfully' })
-  async logout(
-    @Body(new ZodValidationPipe(logoutSchema)) input: LogoutInput,
-  ): Promise<void> {
+  async logout(@Body(new ZodValidationPipe(logoutSchema)) input: LogoutInput): Promise<void> {
     await this.logoutUseCase.execute(input);
   }
 }

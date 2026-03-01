@@ -58,12 +58,20 @@ export class OnBookingConfirmedHandler implements EventHandler {
     const row = intents[0];
 
     if (!row) {
-      this.logger.warn({ msg: 'No payment intent found for confirmed booking', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.warn({
+        msg: 'No payment intent found for confirmed booking',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       return;
     }
 
     if (row.status === 'CAPTURED') {
-      this.logger.log({ msg: 'Already captured (idempotent)', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Already captured (idempotent)',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       recordSagaOutcome('payments', 'capture', 'success');
       return;
     }

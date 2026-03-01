@@ -47,146 +47,159 @@ export class ProcessNotificationsUseCase {
     const env = loadEnv();
     const backoff = getBackoffSchedule();
     const maxRetries = env.NOTIF_RETRY_N;
-    const result: NotificationProcessResult = { total: 0, sent: 0, retried: 0, failedFinal: 0, channels: {} };
+    const result: NotificationProcessResult = {
+      total: 0,
+      sent: 0,
+      retried: 0,
+      failedFinal: 0,
+      channels: {},
+    };
 
     const dueIds = await this.notifRepo.findDueIds();
 
     for (const notifId of dueIds) {
       try {
-        await this.prisma.$transaction(async (tx) => {
-          // Provider HTTP call happens inside TX for atomicity; timeout bounds it
+        await this.prisma.$transaction(
+          async (tx) => {
+            // Provider HTTP call happens inside TX for atomicity; timeout bounds it
 
-          const row = await this.notifRepo.lockById(notifId, tx);
-          if (!row) return;
+            const row = await this.notifRepo.lockById(notifId, tx);
+            if (!row) return;
 
-          const nextTry = row.try_count + 1;
-          const payload = (row.payload_json ?? {}) as Record<string, unknown>;
-          const channel = row.channel as 'SMS' | 'EMAIL' | 'PUSH';
+            const nextTry = row.try_count + 1;
+            const payload = (row.payload_json ?? {}) as Record<string, unknown>;
+            const channel = row.channel as 'SMS' | 'EMAIL' | 'PUSH';
 
-          const chKey = channel.toLowerCase();
-          if (!result.channels[chKey]) result.channels[chKey] = emptyChannelStats();
-          const chStats = result.channels[chKey]!;
+            const chKey = channel.toLowerCase();
+            if (!result.channels[chKey]) result.channels[chKey] = emptyChannelStats();
+            const chStats = result.channels[chKey]!;
 
-          const template = getTemplate(row.template_key, channel);
-          if (!template) {
-            this.logger.warn(
-              `Notification ${row.id}: template '${row.template_key}' not found for channel '${channel}', marking FAILED_FINAL`,
-            );
-            await this.notifRepo.updateStatus(
-              row.id,
-              'FAILED_FINAL',
-              { tryCount: nextTry, lastError: 'TEMPLATE_NOT_FOUND' },
-              tx,
-            );
-            result.failedFinal++;
-            chStats.failedFinal++;
-            return;
-          }
-
-          try {
-            const sendResult = await this.sendViaProvider(
-              channel,
-              row.user_id,
-              template,
-              payload,
-              env.PROVIDER_TIMEOUT_MS,
-            );
-
-            await this.notifRepo.updateStatus(
-              row.id,
-              'SENT',
-              { tryCount: nextTry, providerMessageId: sendResult.providerMessageId },
-              tx,
-            );
-
-            await this.eventRepo.create(
-              {
-                notificationId: row.id,
-                type: 'SENT',
-                payloadJson: { providerMessageId: sendResult.providerMessageId, try: nextTry },
-              },
-              tx,
-            );
-
-            await this.outboxService.publish(
-              {
-                eventType: 'notification.sent',
-                payload: {
-                  notificationId: row.id,
-                  userId: row.user_id,
-                  channel: row.channel,
-                },
-                traceId: randomUUID(),
-              },
-              tx,
-            );
-
-            result.sent++;
-            chStats.sent++;
-            this.logger.log(`Notification ${row.id} sent on try ${nextTry}`);
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-
-            if (nextTry >= maxRetries) {
+            const template = getTemplate(row.template_key, channel);
+            if (!template) {
+              this.logger.warn(
+                `Notification ${row.id}: template '${row.template_key}' not found for channel '${channel}', marking FAILED_FINAL`,
+              );
               await this.notifRepo.updateStatus(
                 row.id,
                 'FAILED_FINAL',
-                { tryCount: nextTry, lastError: errorMsg },
+                { tryCount: nextTry, lastError: 'TEMPLATE_NOT_FOUND' },
                 tx,
               );
+              result.failedFinal++;
+              chStats.failedFinal++;
+              return;
+            }
+
+            try {
+              const sendResult = await this.sendViaProvider(
+                channel,
+                row.user_id,
+                template,
+                payload,
+                env.PROVIDER_TIMEOUT_MS,
+              );
+
+              await this.notifRepo.updateStatus(
+                row.id,
+                'SENT',
+                { tryCount: nextTry, providerMessageId: sendResult.providerMessageId },
+                tx,
+              );
+
               await this.eventRepo.create(
                 {
                   notificationId: row.id,
-                  type: 'FAILED_FINAL',
-                  payloadJson: { error: errorMsg, try: nextTry },
+                  type: 'SENT',
+                  payloadJson: { providerMessageId: sendResult.providerMessageId, try: nextTry },
                 },
                 tx,
               );
+
               await this.outboxService.publish(
                 {
-                  eventType: 'notification.failed_final',
+                  eventType: 'notification.sent',
                   payload: {
                     notificationId: row.id,
                     userId: row.user_id,
                     channel: row.channel,
-                    error: errorMsg,
                   },
                   traceId: randomUUID(),
                 },
                 tx,
               );
 
-              result.failedFinal++;
-              chStats.failedFinal++;
-              this.logger.error(
-                `Notification ${row.id} reached max retries (${maxRetries}), marking FAILED_FINAL`,
-              );
-            } else {
-              const delaySec = backoff[nextTry - 1] ?? backoff[backoff.length - 1]!;
-              const nextRetryAt = new Date(Date.now() + delaySec * 1000);
+              result.sent++;
+              chStats.sent++;
+              this.logger.log(`Notification ${row.id} sent on try ${nextTry}`);
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
 
-              await this.notifRepo.updateStatus(
-                row.id,
-                'FAILED_RETRY',
-                { tryCount: nextTry, nextRetryAt, lastError: errorMsg },
-                tx,
-              );
-              await this.eventRepo.create(
-                {
-                  notificationId: row.id,
-                  type: 'FAILED_RETRY',
-                  payloadJson: { error: errorMsg, try: nextTry, nextRetryAt: nextRetryAt.toISOString() },
-                },
-                tx,
-              );
-              result.retried++;
-              chStats.retried++;
-              this.logger.warn(
-                `Notification ${row.id} failed try ${nextTry}, next retry at ${nextRetryAt.toISOString()}`,
-              );
+              if (nextTry >= maxRetries) {
+                await this.notifRepo.updateStatus(
+                  row.id,
+                  'FAILED_FINAL',
+                  { tryCount: nextTry, lastError: errorMsg },
+                  tx,
+                );
+                await this.eventRepo.create(
+                  {
+                    notificationId: row.id,
+                    type: 'FAILED_FINAL',
+                    payloadJson: { error: errorMsg, try: nextTry },
+                  },
+                  tx,
+                );
+                await this.outboxService.publish(
+                  {
+                    eventType: 'notification.failed_final',
+                    payload: {
+                      notificationId: row.id,
+                      userId: row.user_id,
+                      channel: row.channel,
+                      error: errorMsg,
+                    },
+                    traceId: randomUUID(),
+                  },
+                  tx,
+                );
+
+                result.failedFinal++;
+                chStats.failedFinal++;
+                this.logger.error(
+                  `Notification ${row.id} reached max retries (${maxRetries}), marking FAILED_FINAL`,
+                );
+              } else {
+                const delaySec = backoff[nextTry - 1] ?? backoff[backoff.length - 1]!;
+                const nextRetryAt = new Date(Date.now() + delaySec * 1000);
+
+                await this.notifRepo.updateStatus(
+                  row.id,
+                  'FAILED_RETRY',
+                  { tryCount: nextTry, nextRetryAt, lastError: errorMsg },
+                  tx,
+                );
+                await this.eventRepo.create(
+                  {
+                    notificationId: row.id,
+                    type: 'FAILED_RETRY',
+                    payloadJson: {
+                      error: errorMsg,
+                      try: nextTry,
+                      nextRetryAt: nextRetryAt.toISOString(),
+                    },
+                  },
+                  tx,
+                );
+                result.retried++;
+                chStats.retried++;
+                this.logger.warn(
+                  `Notification ${row.id} failed try ${nextTry}, next retry at ${nextRetryAt.toISOString()}`,
+                );
+              }
             }
-          }
-        }, { timeout: 15_000 });
+          },
+          { timeout: 15_000 },
+        );
 
         result.total++;
       } catch (error) {
@@ -216,9 +229,7 @@ export class ProcessNotificationsUseCase {
         return withTimeout(this.email.send(userId, subject, renderedBody), timeoutMs);
       }
       case 'PUSH': {
-        const title = template.subject
-          ? renderTemplate(template.subject, payload)
-          : 'Sapar';
+        const title = template.subject ? renderTemplate(template.subject, payload) : 'Sapar';
         return withTimeout(this.push.send(userId, title, renderedBody), timeoutMs);
       }
     }

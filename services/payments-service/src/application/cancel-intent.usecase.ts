@@ -36,17 +36,12 @@ export class CancelIntentUseCase {
 
         const allowedStatuses = ['CREATED', 'HOLD_PLACED'];
         if (!allowedStatuses.includes(row.status)) {
-          throw new InvalidPaymentStateError(
-            `Cannot cancel: current status is ${row.status}`,
-          );
+          throw new InvalidPaymentStateError(`Cannot cancel: current status is ${row.status}`);
         }
 
         if (row.psp_intent_id) {
           try {
-            await withTimeout(
-              this.psp.cancelHold(row.psp_intent_id),
-              env.PSP_TIMEOUT_MS,
-            );
+            await withTimeout(this.psp.cancelHold(row.psp_intent_id), env.PSP_TIMEOUT_MS);
           } catch (error) {
             this.logger.error(error, 'PSP cancelHold failed');
             throw new PspUnavailableError();

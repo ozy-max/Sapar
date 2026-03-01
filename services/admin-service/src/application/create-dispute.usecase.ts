@@ -34,32 +34,35 @@ export class CreateDisputeUseCase {
   ) {}
 
   async execute(input: CreateDisputeInput): Promise<DisputeOutput> {
-    const dispute = await this.prisma.$transaction(async (tx) => {
-      const d = await this.disputeRepo.create(
-        {
-          type: input.type as DisputeType,
-          bookingId: input.bookingId,
-          departAt: new Date(input.departAt),
-          evidenceUrls: input.evidenceUrls,
-        },
-        tx,
-      );
+    const dispute = await this.prisma.$transaction(
+      async (tx) => {
+        const d = await this.disputeRepo.create(
+          {
+            type: input.type as DisputeType,
+            bookingId: input.bookingId,
+            departAt: new Date(input.departAt),
+            evidenceUrls: input.evidenceUrls,
+          },
+          tx,
+        );
 
-      await this.auditLogRepo.create(
-        {
-          actorUserId: input.actorUserId,
-          actorRoles: input.actorRoles,
-          action: 'DISPUTE_CREATE',
-          targetType: 'Dispute',
-          targetId: d.id,
-          payloadJson: { type: input.type, bookingId: input.bookingId },
-          traceId: input.traceId,
-        },
-        tx,
-      );
+        await this.auditLogRepo.create(
+          {
+            actorUserId: input.actorUserId,
+            actorRoles: input.actorRoles,
+            action: 'DISPUTE_CREATE',
+            targetType: 'Dispute',
+            targetId: d.id,
+            payloadJson: { type: input.type, bookingId: input.bookingId },
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
-      return d;
-    }, { timeout: 5000 });
+        return d;
+      },
+      { timeout: 5000 },
+    );
 
     this.logger.log(`Dispute created: id=${dispute.id} by=${input.actorUserId}`);
 

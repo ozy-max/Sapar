@@ -88,10 +88,15 @@ export class DisputeController {
   @ApiBody({ type: ResolveDisputeBodyDto })
   @ApiResponse({ status: 200, type: DisputeResponseDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })
-  @ApiResponse({ status: 409, type: ErrorResponseDto, description: 'SLA expired or invalid state' })
+  @ApiResponse({
+    status: 409,
+    type: ErrorResponseDto,
+    description: 'SLA expired or invalid state',
+  })
   async resolve(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(resolveDisputeSchema)) input: ResolveDisputeInput,
+    @Body(new ZodValidationPipe(resolveDisputeSchema))
+    input: ResolveDisputeInput,
     @CurrentUser() userId: string,
     @CurrentUserRoles() roles: string[],
     @Headers('x-request-id') traceId: string,

@@ -10,16 +10,10 @@ import { normalizeRoute } from './route-normalizer';
 const SKIP_PREFIXES = ['/metrics', '/swagger'];
 
 function shouldSkip(path: string): boolean {
-  return SKIP_PREFIXES.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
-  );
+  return SKIP_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
-export function httpMetricsMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function httpMetricsMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (shouldSkip(req.path)) {
     next();
     return;

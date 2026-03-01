@@ -88,9 +88,7 @@ export class CancelBookingUseCase {
       },
     );
 
-    this.logger.log(
-      `Booking cancelled: bookingId=${input.bookingId} by userId=${input.userId}`,
-    );
+    this.logger.log(`Booking cancelled: bookingId=${input.bookingId} by userId=${input.userId}`);
 
     return { bookingId: input.bookingId, status: 'CANCELLED' };
   }

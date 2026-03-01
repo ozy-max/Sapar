@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  Inject,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { PaymentIntentRepository } from '../adapters/db/payment-intent.repository';
 import { PaymentEventRepository } from '../adapters/db/payment-event.repository';
@@ -39,9 +33,7 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
     const env = loadEnv();
     if (env.NODE_ENV === 'test') return;
 
-    this.logger.log(
-      `Starting ReconciliationWorker, interval: ${env.RECONCILIATION_INTERVAL_MS}ms`,
-    );
+    this.logger.log(`Starting ReconciliationWorker, interval: ${env.RECONCILIATION_INTERVAL_MS}ms`);
     this.intervalHandle = setInterval(() => {
       this.currentTick = this.doTick();
     }, env.RECONCILIATION_INTERVAL_MS);

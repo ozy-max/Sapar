@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  Headers,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, Headers, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { ConfigRepository } from '../../db/config.repository';
 import { HmacGuard } from '../guards/hmac.guard';
@@ -36,12 +28,16 @@ export class InternalConfigController {
     @Res() res: Response,
   ): Promise<void> {
     const keys = keysParam
-      ? keysParam.split(',').map((k) => k.trim()).filter(Boolean)
+      ? keysParam
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean)
       : undefined;
 
-    const configs = keys && keys.length > 0
-      ? await this.configRepo.findByKeys(keys)
-      : await this.configRepo.findAll();
+    const configs =
+      keys && keys.length > 0
+        ? await this.configRepo.findByKeys(keys)
+        : await this.configRepo.findAll();
 
     const maxVersion = configs.reduce((max, c) => Math.max(max, c.version), 0);
     const etag = `"v${maxVersion}"`;
@@ -91,12 +87,14 @@ export class InternalConfigController {
     }
 
     const body: ConfigsEnvelope = {
-      items: [{
-        key: config.key,
-        type: config.type,
-        valueJson: config.valueJson,
-        version: config.version,
-      }],
+      items: [
+        {
+          key: config.key,
+          type: config.type,
+          valueJson: config.valueJson,
+          version: config.version,
+        },
+      ],
       meta: { traceId: traceId ?? '' },
     };
 

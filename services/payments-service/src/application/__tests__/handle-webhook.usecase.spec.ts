@@ -2,6 +2,9 @@ import { createHmac } from 'node:crypto';
 import { HandleWebhookUseCase, WebhookPayload } from '../handle-webhook.usecase';
 import { WebhookSignatureInvalidError } from '../../shared/errors';
 import { PaymentIntentStatus } from '../../domain/payment-intent.entity';
+import { PrismaService } from '../../adapters/db/prisma.service';
+import { PaymentIntentRepository } from '../../adapters/db/payment-intent.repository';
+import { PaymentEventRepository } from '../../adapters/db/payment-event.repository';
 
 jest.mock('../../config/env', () => ({
   loadEnv: () => ({
@@ -25,9 +28,9 @@ function buildMocks() {
   };
 
   const useCase = new HandleWebhookUseCase(
-    prisma as any,
-    intentRepo as any,
-    eventRepo as any,
+    prisma as unknown as PrismaService,
+    intentRepo as unknown as PaymentIntentRepository,
+    eventRepo as unknown as PaymentEventRepository,
   );
 
   return { prisma, intentRepo, eventRepo, useCase };
@@ -59,9 +62,9 @@ describe('HandleWebhookUseCase', () => {
       const { useCase } = buildMocks();
       const body = Buffer.from('{"test":true}');
 
-      expect(() => useCase.verifySignature(body, 'bad-signature', String(Math.floor(Date.now() / 1000)))).toThrow(
-        WebhookSignatureInvalidError,
-      );
+      expect(() =>
+        useCase.verifySignature(body, 'bad-signature', String(Math.floor(Date.now() / 1000))),
+      ).toThrow(WebhookSignatureInvalidError);
     });
 
     it('should throw WebhookSignatureInvalidError for expired timestamp', () => {

@@ -42,11 +42,7 @@ export class InvalidPaymentStateError extends AppError {
 
 export class IdempotencyConflictError extends AppError {
   constructor() {
-    super(
-      'IDMP_CONFLICT',
-      409,
-      'Idempotency key already used with different payload',
-    );
+    super('IDMP_CONFLICT', 409, 'Idempotency key already used with different payload');
   }
 }
 

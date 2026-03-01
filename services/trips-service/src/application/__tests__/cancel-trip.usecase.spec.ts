@@ -2,11 +2,7 @@ import { TripStatus } from '@prisma/client';
 import { CancelTripUseCase } from '../cancel-trip.usecase';
 import { PrismaService } from '../../adapters/db/prisma.service';
 import { OutboxService } from '../../shared/outbox.service';
-import {
-  TripNotFoundError,
-  TripNotActiveError,
-  ForbiddenError,
-} from '../../shared/errors';
+import { TripNotFoundError, TripNotActiveError, ForbiddenError } from '../../shared/errors';
 
 const TRIP_ID = '00000000-0000-0000-0000-000000000001';
 const DRIVER_ID = 'user-driver';
@@ -56,9 +52,9 @@ describe('CancelTripUseCase', () => {
   it('should throw ForbiddenError when user is not the driver', async () => {
     const { useCase } = buildDeps();
 
-    await expect(
-      useCase.execute({ ...baseInput, userId: 'other-user' }),
-    ).rejects.toThrow(ForbiddenError);
+    await expect(useCase.execute({ ...baseInput, userId: 'other-user' })).rejects.toThrow(
+      ForbiddenError,
+    );
   });
 
   it('should throw TripNotActiveError when trip is already CANCELLED', async () => {

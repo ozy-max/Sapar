@@ -1,10 +1,4 @@
-import {
-  Registry,
-  Counter,
-  Histogram,
-  Gauge,
-  collectDefaultMetrics,
-} from 'prom-client';
+import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
 
 export const SERVICE_NAME = 'admin-service';
 
@@ -47,6 +41,31 @@ export const httpServerErrorsTotal = new Counter({
   help: 'Total 5xx HTTP server responses',
   registers: [registry],
 });
+
+/* ── Circuit Breaker ─────────────────────────────────────── */
+
+export const circuitBreakerState = new Gauge({
+  name: 'circuit_breaker_state',
+  help: 'Circuit breaker state (1 = active for given state)',
+  labelNames: ['service', 'target', 'state'] as const,
+  registers: [registry],
+});
+
+export const circuitBreakerOpenTotal = new Counter({
+  name: 'circuit_breaker_open_total',
+  help: 'Total times circuit breaker transitioned to OPEN',
+  labelNames: ['service', 'target'] as const,
+  registers: [registry],
+});
+
+export const outboundFailuresTotal = new Counter({
+  name: 'outbound_failures_total',
+  help: 'Total outbound call final failures',
+  labelNames: ['service', 'target', 'operation'] as const,
+  registers: [registry],
+});
+
+/* ── Database (Prisma) ───────────────────────────────────── */
 
 export const dbQueryDurationMs = new Histogram({
   name: 'db_query_duration_ms',

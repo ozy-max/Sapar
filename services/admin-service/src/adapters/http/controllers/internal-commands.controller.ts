@@ -43,7 +43,9 @@ export class InternalCommandsController {
     const limit = Math.min(parseInt(limitStr ?? '10', 10) || 10, 50);
 
     if (service && service.length > 64) {
-      throw new ValidationError({ service: 'Service name must be at most 64 characters' });
+      throw new ValidationError({
+        service: 'Service name must be at most 64 characters',
+      });
     }
 
     if (!service) {
@@ -96,7 +98,11 @@ export class InternalCommandsController {
       action: 'COMMAND_ACK',
       targetType: 'AdminCommand',
       targetId: id,
-      payloadJson: { status: updated.status, tryCount: updated.tryCount, error: body.error },
+      payloadJson: {
+        status: updated.status,
+        tryCount: updated.tryCount,
+        error: body.error,
+      },
       traceId: command.traceId,
     });
 

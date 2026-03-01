@@ -10,6 +10,7 @@ export interface UnifiedErrorBody {
 export const ProxyErrorCode = {
   DOWNSTREAM_UNAVAILABLE: 'DOWNSTREAM_UNAVAILABLE',
   DOWNSTREAM_TIMEOUT: 'DOWNSTREAM_TIMEOUT',
+  DOWNSTREAM_CIRCUIT_OPEN: 'DOWNSTREAM_CIRCUIT_OPEN',
   BAD_GATEWAY: 'BAD_GATEWAY',
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
 } as const;
@@ -29,6 +30,10 @@ export function createProxyError(
     [ProxyErrorCode.DOWNSTREAM_TIMEOUT]: {
       status: HttpStatus.GATEWAY_TIMEOUT,
       message: 'Downstream service timed out',
+    },
+    [ProxyErrorCode.DOWNSTREAM_CIRCUIT_OPEN]: {
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+      message: 'Downstream service circuit breaker is open',
     },
     [ProxyErrorCode.BAD_GATEWAY]: {
       status: HttpStatus.BAD_GATEWAY,

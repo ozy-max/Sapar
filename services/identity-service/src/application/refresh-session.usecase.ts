@@ -56,11 +56,13 @@ export class RefreshSessionUseCase {
             UPDATE refresh_tokens SET revoked_at = NOW()
             WHERE user_id = ${compromisedUserId}::uuid AND revoked_at IS NULL
           `;
-          this.logger.warn(`Refresh token reuse detected, all tokens revoked: userId=${compromisedUserId}`);
+          this.logger.warn(
+            `Refresh token reuse detected, all tokens revoked: userId=${compromisedUserId}`,
+          );
           throw new InvalidRefreshTokenError();
         }
 
-        const rows = anyRows.filter(r => r.revoked_at === null && r.expires_at > new Date());
+        const rows = anyRows.filter((r) => r.revoked_at === null && r.expires_at > new Date());
         if (rows.length === 0) {
           throw new InvalidRefreshTokenError();
         }

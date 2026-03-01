@@ -30,7 +30,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       this.logger.log('AdminCommandWorker disabled in test environment');
       return;
     }
-    this.logger.log(`Starting AdminCommandWorker, poll interval: ${env.COMMAND_POLL_INTERVAL_MS}ms`);
+    this.logger.log(
+      `Starting AdminCommandWorker, poll interval: ${env.COMMAND_POLL_INTERVAL_MS}ms`,
+    );
     this.intervalHandle = setInterval(() => {
       this.currentTick = this.tick();
     }, env.COMMAND_POLL_INTERVAL_MS);
@@ -90,7 +92,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       return data.items;
     } catch (error) {
       clearTimeout(timeout);
-      this.logger.warn(`Failed to fetch commands: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Failed to fetch commands: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -113,12 +117,24 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       ackStatus = 'FAILED_RETRY';
       ackError = error instanceof Error ? error.message : String(error);
-      this.logger.error({ msg: 'Command processing failed', commandId: cmd.id, error: ackError, traceId: cmd.traceId });
+      this.logger.error({
+        msg: 'Command processing failed',
+        commandId: cmd.id,
+        error: ackError,
+        traceId: cmd.traceId,
+      });
     }
 
     await this.ackCommand(cmd.id, ackStatus, ackError);
     const durationMs = Date.now() - startMs;
-    this.logger.log({ msg: 'Command processed', commandId: cmd.id, type: cmd.type, status: ackStatus, durationMs, traceId: cmd.traceId });
+    this.logger.log({
+      msg: 'Command processed',
+      commandId: cmd.id,
+      type: cmd.type,
+      status: ackStatus,
+      durationMs,
+      traceId: cmd.traceId,
+    });
   }
 
   /**
@@ -127,69 +143,72 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
    * enforces driver ownership and stricter status checks.
    */
   private async cancelTrip(tripId: string, reason: string, traceId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      const trips = await tx.$queryRaw<Array<{ id: string; status: string }>>`
+    await this.prisma.$transaction(
+      async (tx) => {
+        const trips = await tx.$queryRaw<Array<{ id: string; status: string }>>`
         SELECT id, status FROM trips WHERE id = ${tripId}::uuid FOR UPDATE
       `;
 
-      const trip = trips[0];
-      if (!trip) {
-        this.logger.log({ msg: 'Trip not found for admin cancel', tripId, traceId });
-        return;
-      }
+        const trip = trips[0];
+        if (!trip) {
+          this.logger.log({ msg: 'Trip not found for admin cancel', tripId, traceId });
+          return;
+        }
 
-      if (trip.status === 'CANCELLED' || trip.status === 'COMPLETED') {
-        this.logger.log({ msg: 'Trip already terminal', tripId, status: trip.status, traceId });
-        return;
-      }
+        if (trip.status === 'CANCELLED' || trip.status === 'COMPLETED') {
+          this.logger.log({ msg: 'Trip already terminal', tripId, status: trip.status, traceId });
+          return;
+        }
 
-      await tx.trip.update({
-        where: { id: tripId },
-        data: { status: TripStatus.CANCELLED },
-      });
+        await tx.trip.update({
+          where: { id: tripId },
+          data: { status: TripStatus.CANCELLED },
+        });
 
-      const bookingsToCancel = await tx.booking.findMany({
-        where: {
-          tripId,
-          status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
-        },
-        select: { id: true, passengerId: true, seats: true, status: true },
-      });
+        const bookingsToCancel = await tx.booking.findMany({
+          where: {
+            tripId,
+            status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+          },
+          select: { id: true, passengerId: true, seats: true, status: true },
+        });
 
-      await tx.booking.updateMany({
-        where: {
-          tripId,
-          status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
-        },
-        data: { status: 'CANCELLED' },
-      });
+        await tx.booking.updateMany({
+          where: {
+            tripId,
+            status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+          },
+          data: { status: 'CANCELLED' },
+        });
 
-      for (const booking of bookingsToCancel) {
+        for (const booking of bookingsToCancel) {
+          await this.outboxService.publish(
+            {
+              eventType: 'booking.cancelled',
+              payload: {
+                bookingId: booking.id,
+                tripId,
+                passengerId: booking.passengerId,
+                seats: booking.seats,
+                reason: 'ADMIN_CANCELLED',
+              },
+              traceId,
+            },
+            tx,
+          );
+        }
+
         await this.outboxService.publish(
           {
-            eventType: 'booking.cancelled',
-            payload: {
-              bookingId: booking.id,
-              tripId,
-              passengerId: booking.passengerId,
-              seats: booking.seats,
-              reason: 'ADMIN_CANCELLED',
-            },
+            eventType: 'trip.cancelled',
+            payload: { tripId, reason, adminCancelled: true },
             traceId,
           },
           tx,
         );
-      }
-
-      await this.outboxService.publish(
-        {
-          eventType: 'trip.cancelled',
-          payload: { tripId, reason, adminCancelled: true },
-          traceId,
-        },
-        tx,
-      );
-    }, { timeout: 15_000 });
+      },
+      { timeout: 15_000 },
+    );
   }
 
   private async ackCommand(
@@ -220,7 +239,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       clearTimeout(timeout);
     } catch (err) {
       clearTimeout(timeout);
-      this.logger.warn(`Failed to ack command ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `Failed to ack command ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

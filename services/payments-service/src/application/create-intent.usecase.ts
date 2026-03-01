@@ -50,7 +50,9 @@ export class CreateIntentUseCase {
     const existingForBooking = await this.intentRepo.findByBookingId(input.bookingId);
     if (existingForBooking) {
       if (existingForBooking.payerId !== input.payerId) {
-        throw new InvalidPaymentStateError('Booking already has a payment intent from another payer');
+        throw new InvalidPaymentStateError(
+          'Booking already has a payment intent from another payer',
+        );
       }
       return {
         paymentIntentId: existingForBooking.id,
@@ -65,10 +67,7 @@ export class CreateIntentUseCase {
         input.payerId,
       );
       if (existing) {
-        if (
-          existing.bookingId !== input.bookingId ||
-          existing.amountKgs !== input.amountKgs
-        ) {
+        if (existing.bookingId !== input.bookingId || existing.amountKgs !== input.amountKgs) {
           throw new IdempotencyConflictError();
         }
         return {

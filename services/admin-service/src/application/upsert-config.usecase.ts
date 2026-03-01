@@ -29,7 +29,9 @@ export class UpsertConfigUseCase {
 
   async execute(input: UpsertConfigInput): Promise<ConfigOutput> {
     const config = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.config.findUnique({ where: { key: input.key } });
+      const existing = await tx.config.findUnique({
+        where: { key: input.key },
+      });
       const nextVersion = (existing?.version ?? 0) + 1;
 
       const upserted = await tx.config.upsert({
@@ -58,7 +60,12 @@ export class UpsertConfigUseCase {
           action: 'CONFIG_UPSERT',
           targetType: 'Config',
           targetId: input.key,
-          payloadJson: { type: input.type, value: input.value, description: input.description, scope: input.scope } as never,
+          payloadJson: {
+            type: input.type,
+            value: input.value,
+            description: input.description,
+            scope: input.scope,
+          } as never,
           traceId: input.traceId,
         },
       });

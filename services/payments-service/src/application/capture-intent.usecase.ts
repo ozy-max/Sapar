@@ -37,9 +37,7 @@ export class CaptureIntentUseCase {
         if (!row) throw new PaymentIntentNotFoundError();
         if (row.payer_id !== userId) throw new ForbiddenPaymentError();
         if (row.status !== 'HOLD_PLACED') {
-          throw new InvalidPaymentStateError(
-            `Cannot capture: current status is ${row.status}`,
-          );
+          throw new InvalidPaymentStateError(`Cannot capture: current status is ${row.status}`);
         }
 
         if (!row.psp_intent_id) {

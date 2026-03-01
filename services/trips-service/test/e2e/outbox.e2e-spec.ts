@@ -11,7 +11,9 @@ const PASSENGER_A = '00000000-0000-4000-a000-000000000002';
 const PASSENGER_B = '00000000-0000-4000-a000-000000000003';
 
 function auth(userId: string): string {
-  const token = jwt.sign({ sub: userId, email: `${userId}@test.com` }, JWT_SECRET, { expiresIn: 3600 });
+  const token = jwt.sign({ sub: userId, email: `${userId}@test.com` }, JWT_SECRET, {
+    expiresIn: 3600,
+  });
   return `Bearer ${token}`;
 }
 
@@ -156,13 +158,9 @@ describe('Outbox E2E — trips-service', () => {
 
     expect(cancelledEvents).toHaveLength(2);
 
-    const payloads = cancelledEvents.map(
-      (e) => e.payloadJson as Record<string, unknown>,
-    );
+    const payloads = cancelledEvents.map((e) => e.payloadJson as Record<string, unknown>);
     const bookingIds = payloads.map((p) => p['bookingId']).sort();
-    expect(bookingIds).toEqual(
-      [bookA.body.bookingId, bookB.body.bookingId].sort(),
-    );
+    expect(bookingIds).toEqual([bookA.body.bookingId, bookB.body.bookingId].sort());
 
     for (const payload of payloads) {
       expect(payload['tripId']).toBe(tripId);

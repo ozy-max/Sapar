@@ -1,0 +1,192 @@
+groups:
+  - name: sapar_availability
+    interval: 15s
+    rules:
+      # --- Gateway availability: >1% 5xx rate over 5 min ---
+      - alert: GatewayHigh5xxRate
+        expr: |
+          (
+            sum(rate(http_server_errors_total{service="api-gateway"}[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total{service="api-gateway"}[5m])), 1)
+          ) > 0.01
+        for: 3m
+        labels:
+          severity: critical
+          service: api-gateway
+        annotations:
+          summary: "Gateway 5xx rate exceeds 1%"
+          dashboard: "grafana/d/gateway"
+          runbook: "docs/runbooks/downstream-outage.md"
+
+      # --- Per-service high 5xx rate ---
+      - alert: ServiceHigh5xxRate
+        expr: |
+          (
+            sum by (service) (rate(http_server_errors_total[5m]))
+            /
+            clamp_min(sum by (service) (rate(http_requests_total[5m])), 1)
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} 5xx rate exceeds 5%"
+          runbook: "docs/runbooks/downstream-outage.md"
+
+  - name: sapar_latency
+    interval: 15s
+    rules:
+      # --- Gateway p95 latency ---
+      - alert: GatewayP95LatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket{service="api-gateway"}[5m])) by (le))
+          > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: api-gateway
+        annotations:
+          summary: "Gateway p95 latency exceeds 1000ms"
+          dashboard: "grafana/d/sapar-overview"
+
+      # --- Per-service p95 latency ---
+      - alert: ServiceP95LatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_ms_bucket[5m])))
+          > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} p95 latency exceeds 2000ms"
+
+  - name: sapar_circuit_breaker
+    interval: 15s
+    rules:
+      # --- Circuit breaker open too long ---
+      - alert: CircuitBreakerOpenTooLong
+        expr: |
+          circuit_breaker_state{state="open"} == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker {{ $labels.target }} on {{ $labels.service }} open for >5min"
+          runbook: "docs/runbooks/downstream-outage.md"
+
+      # --- Circuit breaker opens spike ---
+      - alert: CircuitBreakerOpenSpike
+        expr: |
+          increase(circuit_breaker_open_total[10m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.target }} opened {{ $value }} times in 10min"
+
+  - name: sapar_outbox
+    interval: 15s
+    rules:
+      # --- Outbox FAILED_FINAL increasing ---
+      - alert: OutboxFailedFinalIncreasing
+        expr: |
+          increase(outbox_event_total{status="failed_final"}[15m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} outbox FAILED_FINAL events increasing"
+          runbook: "docs/runbooks/outbox-backlog-growth.md"
+
+      # --- Outbox delivery errors sustained ---
+      - alert: OutboxDeliveryErrorsHigh
+        expr: |
+          rate(outbox_delivery_errors_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} outbox delivery errors sustained"
+          runbook: "docs/runbooks/outbox-backlog-growth.md"
+
+  - name: sapar_database
+    interval: 15s
+    rules:
+      # --- DB errors increasing ---
+      - alert: DatabaseErrorsIncreasing
+        expr: |
+          increase(db_errors_total[10m]) > 10
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} database errors increasing"
+          runbook: "docs/runbooks/downstream-outage.md"
+
+      # --- DB query latency spike ---
+      - alert: DatabaseQueryLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (service, le) (rate(db_query_duration_ms_bucket[5m])))
+          > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} DB p95 query latency exceeds 500ms"
+
+  - name: sapar_redis
+    interval: 15s
+    rules:
+      # --- Redis errors for gateway ---
+      - alert: RedisErrorsHigh
+        expr: |
+          increase(redis_errors_total{service="api-gateway"}[5m]) > 10
+        for: 3m
+        labels:
+          severity: critical
+          service: api-gateway
+        annotations:
+          summary: "Gateway Redis errors increasing"
+          runbook: "docs/runbooks/redis-down.md"
+
+  - name: sapar_payments
+    interval: 15s
+    rules:
+      # --- Receipt failed_final spike ---
+      - alert: ReceiptFailedFinalSpike
+        expr: |
+          increase(receipt_status_total{status="FAILED_FINAL"}[15m]) > 3
+        for: 5m
+        labels:
+          severity: critical
+          service: payments-service
+        annotations:
+          summary: "Receipt FAILED_FINAL count increasing"
+          runbook: "docs/runbooks/receipt-failures.md"
+
+      # --- PSP call errors high ---
+      - alert: PSPCallErrorsHigh
+        expr: |
+          rate(external_call_errors_total{provider="psp"}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          service: payments-service
+        annotations:
+          summary: "PSP call error rate elevated"
+          runbook: "docs/runbooks/psp-failures.md"
+
+  - name: sapar_notifications
+    interval: 15s
+    rules:
+      # --- Notification failed_final spike ---
+      - alert: NotificationFailedFinalSpike
+        expr: |
+          increase(notification_outcome_total{status="failed_final"}[15m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications-service
+        annotations:
+          summary: "Notification FAILED_FINAL outcomes increasing"

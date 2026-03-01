@@ -13,6 +13,7 @@ RUN npm run build
 
 # ── production image ──
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
@@ -22,7 +23,8 @@ RUN npm ci --omit=dev && npx prisma generate && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
+RUN chown -R node:node /app
 USER node
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]

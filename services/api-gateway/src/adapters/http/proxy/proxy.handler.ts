@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Logger } from '@nestjs/common';
-import { request as undiciRequest } from 'undici';
+import { request as undiciRequest, Dispatcher } from 'undici';
 import { RouteEntry } from './route-table';
 import { pickRequestHeaders, pickResponseHeaders, HeadersRecord } from './headers';
 import { createProxyError, mapDownstreamError, ProxyErrorCode, UnifiedErrorBody } from './errors';
@@ -8,8 +8,31 @@ import { ProxyMetrics } from './metrics';
 import { getSharedDispatcher } from './http-client';
 import { loadEnv } from '../../../config/env';
 import { recordAppError } from '../../../observability/error-metrics';
+import { CircuitBreaker, CircuitOpenError } from '../../../shared/resilience/circuit-breaker';
+import { withRetry, DEFAULT_RETRY_CONFIG } from '../../../shared/resilience/retry';
+import {
+  SERVICE_NAME,
+  outboundRetriesTotal,
+  outboundFailuresTotal,
+} from '../../../observability/metrics.registry';
 
 const logger = new Logger('ProxyHandler');
+
+class RetryableUpstreamError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly upstream: string,
+  ) {
+    super(`Upstream ${upstream} returned ${statusCode}`);
+    this.name = 'RetryableUpstreamError';
+  }
+}
+
+function shouldRetryProxy(error: unknown): boolean {
+  if (error instanceof CircuitOpenError) return false;
+  if (error instanceof RetryableUpstreamError) return true;
+  return true;
+}
 
 export async function handleProxy(
   req: Request,
@@ -17,6 +40,7 @@ export async function handleProxy(
   route: RouteEntry,
   downstreamPath: string,
   metrics: ProxyMetrics,
+  breaker: CircuitBreaker,
 ): Promise<void> {
   const env = loadEnv();
   const traceId = (req.headers['x-request-id'] as string) ?? 'unknown';
@@ -49,14 +73,49 @@ export async function handleProxy(
   const requestBody =
     hasBody && req.body !== undefined && req.body !== null ? JSON.stringify(req.body) : undefined;
 
+  const doRequest = (): Promise<Dispatcher.ResponseData> =>
+    breaker.execute(
+      () =>
+        undiciRequest(fullUrl, {
+          method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+          headers: forwardHeaders,
+          body: requestBody,
+          dispatcher: getSharedDispatcher(),
+          signal: AbortSignal.timeout(env.HTTP_TIMEOUT_MS),
+        }),
+      { traceId, isSuccess: (resp) => resp.statusCode < 500 },
+    );
+
   try {
-    const downstream = await undiciRequest(fullUrl, {
-      method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-      headers: forwardHeaders,
-      body: requestBody,
-      dispatcher: getSharedDispatcher(),
-      signal: AbortSignal.timeout(env.HTTP_TIMEOUT_MS),
-    });
+    let downstream: Dispatcher.ResponseData;
+    const isIdempotent = method === 'GET' || method === 'HEAD';
+
+    if (isIdempotent) {
+      downstream = await withRetry(
+        async () => {
+          const resp = await doRequest();
+          if (resp.statusCode >= 500) {
+            await resp.body.text();
+            throw new RetryableUpstreamError(resp.statusCode, route.upstream);
+          }
+          return resp;
+        },
+        DEFAULT_RETRY_CONFIG,
+        shouldRetryProxy,
+        (attempt, _err, _delay) => {
+          outboundRetriesTotal.labels(SERVICE_NAME, route.upstream, `proxy_${method}`).inc();
+          logger.warn({
+            msg: 'proxy_retry',
+            upstream: route.upstream,
+            method,
+            attempt,
+            traceId,
+          });
+        },
+      );
+    } else {
+      downstream = await doRequest();
+    }
 
     const latencyMs = Math.round(performance.now() - start);
     const status = downstream.statusCode;
@@ -70,21 +129,16 @@ export async function handleProxy(
       traceId,
     });
 
-    metrics.recordRequest({
-      upstream: route.upstream,
-      method,
-      status,
-      latencyMs,
-    });
+    metrics.recordRequest({ upstream: route.upstream, method, status, latencyMs });
 
     const safeHeaders = pickResponseHeaders(downstream.headers as HeadersRecord);
     for (const [key, value] of Object.entries(safeHeaders)) {
       res.setHeader(key, value);
     }
 
+    const maxResponseBytes = env.MAX_DOWNSTREAM_RESPONSE_BYTES;
     const chunks: Buffer[] = [];
     let totalBytes = 0;
-    const maxResponseBytes = env.MAX_BODY_BYTES * 2;
     for await (const chunk of downstream.body) {
       const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
       totalBytes += buf.length;
@@ -94,9 +148,9 @@ export async function handleProxy(
           maxBytes: maxResponseBytes,
           receivedBytes: totalBytes,
         });
-        const body = err.getResponse() as UnifiedErrorBody;
-        recordAppError(body.code);
-        res.status(err.getStatus()).json(body);
+        const errBody = err.getResponse() as UnifiedErrorBody;
+        recordAppError(errBody.code);
+        res.status(502).json(errBody);
         return;
       }
       chunks.push(buf);
@@ -117,6 +171,26 @@ export async function handleProxy(
   } catch (error: unknown) {
     const latencyMs = Math.round(performance.now() - start);
 
+    if (error instanceof CircuitOpenError) {
+      logger.warn({
+        msg: 'proxy_circuit_open',
+        upstream: route.upstream,
+        method,
+        latencyMs,
+        traceId,
+      });
+      metrics.recordRequest({ upstream: route.upstream, method, status: 503, latencyMs });
+      const httpErr = createProxyError(ProxyErrorCode.DOWNSTREAM_CIRCUIT_OPEN, traceId, {
+        target: route.upstream,
+      });
+      const body = httpErr.getResponse() as UnifiedErrorBody;
+      recordAppError(body.code);
+      res.status(httpErr.getStatus()).json(body);
+      return;
+    }
+
+    outboundFailuresTotal.labels(SERVICE_NAME, route.upstream, `proxy_${method}`).inc();
+
     logger.error({
       msg: 'proxy_error',
       method,
@@ -126,12 +200,7 @@ export async function handleProxy(
       error: error instanceof Error ? error.message : String(error),
     });
 
-    metrics.recordRequest({
-      upstream: route.upstream,
-      method,
-      status: 502,
-      latencyMs,
-    });
+    metrics.recordRequest({ upstream: route.upstream, method, status: 502, latencyMs });
 
     const httpErr = mapDownstreamError(error, traceId);
     const body = httpErr.getResponse() as UnifiedErrorBody;

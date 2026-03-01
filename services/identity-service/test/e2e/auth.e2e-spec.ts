@@ -126,9 +126,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should rotate refresh token and return new tokens', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken });
+      const res = await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken });
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('accessToken');
@@ -138,13 +136,9 @@ describe('Auth (e2e)', () => {
     });
 
     it('should invalidate old refresh token after rotation', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken });
+      await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken });
 
-      const res = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken });
+      const res = await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken });
 
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
@@ -167,9 +161,7 @@ describe('Auth (e2e)', () => {
       const newRefreshToken = rotated.body.refreshToken;
 
       // Reuse the old (now revoked) token — triggers reuse detection
-      const reuse = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken });
+      const reuse = await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken });
       expect(reuse.status).toBe(401);
       expect(reuse.body.code).toBe('INVALID_REFRESH_TOKEN');
 
@@ -182,9 +174,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should include X-RateLimit headers on refresh response', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken });
+      const res = await request(app.getHttpServer()).post('/auth/refresh').send({ refreshToken });
 
       expect(res.status).toBe(200);
       expect(res.headers['x-ratelimit-limit']).toBeDefined();
@@ -217,13 +207,9 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 204 even for already-invalid token (idempotent)', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/logout')
-        .send({ refreshToken });
+      await request(app.getHttpServer()).post('/auth/logout').send({ refreshToken });
 
-      const res = await request(app.getHttpServer())
-        .post('/auth/logout')
-        .send({ refreshToken });
+      const res = await request(app.getHttpServer()).post('/auth/logout').send({ refreshToken });
 
       expect(res.status).toBe(204);
     });

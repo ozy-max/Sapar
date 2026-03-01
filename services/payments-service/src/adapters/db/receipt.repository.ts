@@ -17,10 +17,7 @@ export interface ReceiptRow {
 export class ReceiptRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(
-    paymentIntentId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<Receipt> {
+  async create(paymentIntentId: string, tx?: Prisma.TransactionClient): Promise<Receipt> {
     const client = tx ?? this.prisma;
     return client.receipt.create({
       data: {
@@ -44,10 +41,7 @@ export class ReceiptRepository {
     return rows.map((r) => r.id);
   }
 
-  async lockById(
-    id: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<ReceiptRow | null> {
+  async lockById(id: string, tx: Prisma.TransactionClient): Promise<ReceiptRow | null> {
     const rows = await tx.$queryRaw<ReceiptRow[]>`
       SELECT * FROM receipts
       WHERE id = ${id}::uuid AND status = 'PENDING'
@@ -88,9 +82,7 @@ export class ReceiptRepository {
     });
   }
 
-  async findByPaymentIntentIds(
-    paymentIntentIds: string[],
-  ): Promise<Receipt[]> {
+  async findByPaymentIntentIds(paymentIntentIds: string[]): Promise<Receipt[]> {
     if (paymentIntentIds.length === 0) return [];
     return this.prisma.receipt.findMany({
       where: { paymentIntentId: { in: paymentIntentIds } },

@@ -33,10 +33,7 @@ export class BookingRepository {
     });
   }
 
-  async findByIdForUpdate(
-    id: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<BookingRow | null> {
+  async findByIdForUpdate(id: string, tx: Prisma.TransactionClient): Promise<BookingRow | null> {
     const rows = await tx.$queryRaw<BookingRow[]>`
       SELECT id, trip_id, passenger_id, seats, status, created_at, updated_at
       FROM bookings
@@ -46,7 +43,11 @@ export class BookingRepository {
     return rows[0] ?? null;
   }
 
-  async findExpiredPendingIds(cutoff: Date, limit = 50, tx?: Prisma.TransactionClient): Promise<string[]> {
+  async findExpiredPendingIds(
+    cutoff: Date,
+    limit = 50,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string[]> {
     const client = tx ?? this.prisma;
     const rows = await client.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM bookings
@@ -64,7 +65,12 @@ export class BookingRepository {
     statusFilter?: string,
     limit = 50,
     offset = 0,
-  ): Promise<{ items: (Booking & { trip: { fromCity: string; toCity: string; departAt: Date; priceKgs: number } })[]; total: number }> {
+  ): Promise<{
+    items: (Booking & {
+      trip: { fromCity: string; toCity: string; departAt: Date; priceKgs: number };
+    })[];
+    total: number;
+  }> {
     const where: Prisma.BookingWhereInput = { passengerId };
     if (statusFilter) {
       where.status = statusFilter as Booking['status'];
@@ -73,7 +79,9 @@ export class BookingRepository {
     const [items, total] = await Promise.all([
       this.prisma.booking.findMany({
         where,
-        include: { trip: { select: { fromCity: true, toCity: true, departAt: true, priceKgs: true } } },
+        include: {
+          trip: { select: { fromCity: true, toCity: true, departAt: true, priceKgs: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
@@ -84,15 +92,36 @@ export class BookingRepository {
     return { items, total };
   }
 
-  async findByIdWithTrip(id: string): Promise<(Booking & { trip: { id: string; driverId: string; fromCity: string; toCity: string; departAt: Date; seatsTotal: number; seatsAvailable: number; priceKgs: number; status: string } }) | null> {
+  async findByIdWithTrip(id: string): Promise<
+    | (Booking & {
+        trip: {
+          id: string;
+          driverId: string;
+          fromCity: string;
+          toCity: string;
+          departAt: Date;
+          seatsTotal: number;
+          seatsAvailable: number;
+          priceKgs: number;
+          status: string;
+        };
+      })
+    | null
+  > {
     return this.prisma.booking.findUnique({
       where: { id },
       include: {
         trip: {
           select: {
-            id: true, driverId: true, fromCity: true, toCity: true,
-            departAt: true, seatsTotal: true, seatsAvailable: true,
-            priceKgs: true, status: true,
+            id: true,
+            driverId: true,
+            fromCity: true,
+            toCity: true,
+            departAt: true,
+            seatsTotal: true,
+            seatsAvailable: true,
+            priceKgs: true,
+            status: true,
           },
         },
       },

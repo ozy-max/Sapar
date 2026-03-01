@@ -15,10 +15,7 @@ import { HealthController } from './adapters/http/controllers/health.controller'
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
-        level:
-          process.env['NODE_ENV'] === 'test'
-            ? 'silent'
-            : (process.env['LOG_LEVEL'] ?? 'info'),
+        level: process.env['NODE_ENV'] === 'test' ? 'silent' : (process.env['LOG_LEVEL'] ?? 'info'),
         genReqId: (req: IncomingMessage): string => {
           return (req.headers['x-request-id'] as string) ?? randomUUID();
         },

@@ -50,7 +50,11 @@ export class OnDisputeResolvedHandler implements EventHandler {
     const p = parsed.data;
 
     if (p.resolution === 'NO_REFUND') {
-      this.logger.log({ msg: 'Dispute resolved with NO_REFUND, skipping', disputeId: p.disputeId, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Dispute resolved with NO_REFUND, skipping',
+        disputeId: p.disputeId,
+        traceId: event.traceId,
+      });
       return;
     }
 
@@ -63,27 +67,46 @@ export class OnDisputeResolvedHandler implements EventHandler {
     const row = intents[0];
 
     if (!row) {
-      this.logger.log({ msg: 'No payment intent for dispute', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.log({
+        msg: 'No payment intent for dispute',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       return;
     }
 
     if (row.status === 'REFUNDED') {
-      this.logger.log({ msg: 'Payment already refunded', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Payment already refunded',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       return;
     }
 
     if (row.status !== 'CAPTURED') {
-      this.logger.warn({ msg: 'Cannot refund: payment not captured', bookingId: p.bookingId, status: row.status, traceId: event.traceId });
+      this.logger.warn({
+        msg: 'Cannot refund: payment not captured',
+        bookingId: p.bookingId,
+        status: row.status,
+        traceId: event.traceId,
+      });
       return;
     }
 
-    const refundAmount = p.resolution === 'PARTIAL' && p.refundAmountKgs
-      ? p.refundAmountKgs
-      : row.amount_kgs;
+    const refundAmount =
+      p.resolution === 'PARTIAL' && p.refundAmountKgs ? p.refundAmountKgs : row.amount_kgs;
 
     if (refundAmount <= 0 || refundAmount > row.amount_kgs) {
-      this.logger.warn({ msg: 'Invalid refund amount', refundAmount, originalAmount: row.amount_kgs, traceId: event.traceId });
-      throw new DataCorruptionError(`Invalid refund amount: ${refundAmount} exceeds original ${row.amount_kgs}`);
+      this.logger.warn({
+        msg: 'Invalid refund amount',
+        refundAmount,
+        originalAmount: row.amount_kgs,
+        traceId: event.traceId,
+      });
+      throw new DataCorruptionError(
+        `Invalid refund amount: ${refundAmount} exceeds original ${row.amount_kgs}`,
+      );
     }
 
     if (!row.psp_intent_id) {
@@ -94,15 +117,21 @@ export class OnDisputeResolvedHandler implements EventHandler {
 
     const pspStatus = await withTimeout(this.psp.getStatus(row.psp_intent_id), env.PSP_TIMEOUT_MS);
     if (pspStatus.status === 'refunded') {
-      this.logger.warn({ msg: 'PSP already refunded (dispute), syncing local state', paymentIntentId: row.id, traceId: event.traceId });
+      this.logger.warn({
+        msg: 'PSP already refunded (dispute), syncing local state',
+        paymentIntentId: row.id,
+        traceId: event.traceId,
+      });
     } else {
       try {
-        await withTimeout(
-          this.psp.refund(row.psp_intent_id, refundAmount),
-          env.PSP_TIMEOUT_MS,
-        );
+        await withTimeout(this.psp.refund(row.psp_intent_id, refundAmount), env.PSP_TIMEOUT_MS);
       } catch (error) {
-        this.logger.error({ msg: 'PSP refund failed for dispute', disputeId: p.disputeId, error: String(error), traceId: event.traceId });
+        this.logger.error({
+          msg: 'PSP refund failed for dispute',
+          disputeId: p.disputeId,
+          error: String(error),
+          traceId: event.traceId,
+        });
         throw error;
       }
     }

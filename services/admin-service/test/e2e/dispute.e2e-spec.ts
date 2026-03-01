@@ -161,7 +161,10 @@ describe('Disputes (e2e)', () => {
         where: { targetType: 'Dispute', targetId: disputeId, action: 'DISPUTE_RESOLVE' },
       });
       expect(audits).toHaveLength(1);
-      expect(JSON.parse(JSON.stringify(audits[0].payloadJson))).toHaveProperty('resolution', 'PARTIAL');
+      expect(JSON.parse(JSON.stringify(audits[0].payloadJson))).toHaveProperty(
+        'resolution',
+        'PARTIAL',
+      );
     });
   });
 

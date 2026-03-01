@@ -97,9 +97,7 @@ describe('BookSeatUseCase', () => {
     const { useCase, tx } = buildDeps();
     tx.trip.findUnique.mockResolvedValue(makeTrip({ seatsAvailable: 0 }));
 
-    await expect(useCase.execute({ ...baseInput, seats: 2 })).rejects.toThrow(
-      NotEnoughSeatsError,
-    );
+    await expect(useCase.execute({ ...baseInput, seats: 2 })).rejects.toThrow(NotEnoughSeatsError);
   });
 
   it('should throw BookingExistsError when passenger already has active booking', async () => {

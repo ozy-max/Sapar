@@ -32,10 +32,7 @@ export class PaymentIntentRepository {
     return this.prisma.paymentIntent.findUnique({ where: { id } });
   }
 
-  async findByIdempotencyKey(
-    key: string,
-    payerId: string,
-  ): Promise<PaymentIntent | null> {
+  async findByIdempotencyKey(key: string, payerId: string): Promise<PaymentIntent | null> {
     return this.prisma.paymentIntent.findUnique({
       where: { idempotencyKey_payerId: { idempotencyKey: key, payerId } },
     });
@@ -99,7 +96,9 @@ export class PaymentIntentRepository {
   async findStuckIntents(
     staleMinutes: number,
     limit: number,
-  ): Promise<Array<{ id: string; status: string; psp_intent_id: string | null; created_at: Date }>> {
+  ): Promise<
+    Array<{ id: string; status: string; psp_intent_id: string | null; created_at: Date }>
+  > {
     return this.prisma.$queryRaw`
       SELECT id, status, psp_intent_id, created_at
       FROM payment_intents

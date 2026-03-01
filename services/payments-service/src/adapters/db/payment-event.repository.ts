@@ -13,10 +13,7 @@ export interface CreateEventData {
 export class PaymentEventRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(
-    data: CreateEventData,
-    tx?: Prisma.TransactionClient,
-  ): Promise<PaymentEvent> {
+  async create(data: CreateEventData, tx?: Prisma.TransactionClient): Promise<PaymentEvent> {
     const client = tx ?? this.prisma;
     return client.paymentEvent.create({
       data: {

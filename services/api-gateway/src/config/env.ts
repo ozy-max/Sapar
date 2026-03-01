@@ -27,6 +27,13 @@ const envSchema = z
     HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
     BFF_TIMEOUT_MS: z.coerce.number().int().positive().default(2500),
     MAX_BODY_BYTES: z.coerce.number().int().positive().default(1_048_576),
+    MAX_DOWNSTREAM_RESPONSE_BYTES: z.coerce.number().int().positive().default(5_242_880),
+
+    CB_ROLLING_WINDOW_MS: z.coerce.number().int().positive().default(30_000),
+    CB_ERROR_THRESHOLD_PERCENT: z.coerce.number().int().min(1).max(100).default(50),
+    CB_MIN_REQUESTS: z.coerce.number().int().positive().default(20),
+    CB_OPEN_DURATION_MS: z.coerce.number().int().positive().default(10_000),
+    CB_HALF_OPEN_MAX_PROBES: z.coerce.number().int().positive().default(3),
 
     REDIS_URL: z.string().min(1).optional(),
     REDIS_TIMEOUT_MS: z.coerce.number().int().positive().default(500),

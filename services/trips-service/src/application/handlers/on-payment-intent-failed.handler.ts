@@ -38,12 +38,21 @@ export class OnPaymentIntentFailedHandler implements EventHandler {
     const booking = rows[0];
 
     if (!booking) {
-      this.logger.warn({ msg: 'Booking not found for intent_failed', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.warn({
+        msg: 'Booking not found for intent_failed',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       return;
     }
 
     if (booking.status === 'CANCELLED' || booking.status === 'EXPIRED') {
-      this.logger.log({ msg: 'Booking already terminal', bookingId: p.bookingId, status: booking.status, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Booking already terminal',
+        bookingId: p.bookingId,
+        status: booking.status,
+        traceId: event.traceId,
+      });
       return;
     }
 

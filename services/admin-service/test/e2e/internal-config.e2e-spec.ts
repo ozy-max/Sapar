@@ -39,9 +39,7 @@ describe('Internal Config API (e2e)', () => {
       .set('Authorization', ADMIN_AUTH)
       .send({ type: 'INT', value: 42 });
 
-    const res = await request(ctx.app.getHttpServer())
-      .get('/internal/configs')
-      .set(hmacHeaders());
+    const res = await request(ctx.app.getHttpServer()).get('/internal/configs').set(hmacHeaders());
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
@@ -148,8 +146,7 @@ describe('Internal Config API (e2e)', () => {
   });
 
   it('should reject request without HMAC', async () => {
-    const res = await request(ctx.app.getHttpServer())
-      .get('/internal/configs');
+    const res = await request(ctx.app.getHttpServer()).get('/internal/configs');
 
     expect(res.status).toBe(401);
   });

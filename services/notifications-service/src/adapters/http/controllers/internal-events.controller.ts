@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Logger,
-  UseGuards,
-  HttpCode,
-} from '@nestjs/common';
+import { Controller, Post, Body, Logger, UseGuards, HttpCode } from '@nestjs/common';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../db/prisma.service';
@@ -64,26 +57,29 @@ export class InternalEventsController {
       return { status: 'duplicate' };
     }
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      try {
-        await this.consumedRepo.create(
-          {
-            eventId: envelope.eventId,
-            eventType: envelope.eventType,
-            producer: envelope.producer,
-            traceId: envelope.traceId,
-          },
-          tx,
-        );
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          return;
+    await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        try {
+          await this.consumedRepo.create(
+            {
+              eventId: envelope.eventId,
+              eventType: envelope.eventType,
+              producer: envelope.producer,
+              traceId: envelope.traceId,
+            },
+            tx,
+          );
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return;
+          }
+          throw error;
         }
-        throw error;
-      }
 
-      await handler.handle(envelope, tx);
-    }, { timeout: 15_000 });
+        await handler.handle(envelope, tx);
+      },
+      { timeout: 15_000 },
+    );
 
     recordConsumerEvent(envelope.eventType, 'processed');
     this.logger.log({

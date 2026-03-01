@@ -36,7 +36,11 @@ export class NotificationNotFoundError extends AppError {
 
 export class TemplateNotFoundError extends AppError {
   constructor(templateKey: string, channel: string) {
-    super('TEMPLATE_NOT_FOUND', 400, `Template '${templateKey}' not found for channel '${channel}'`);
+    super(
+      'TEMPLATE_NOT_FOUND',
+      400,
+      `Template '${templateKey}' not found for channel '${channel}'`,
+    );
   }
 }
 

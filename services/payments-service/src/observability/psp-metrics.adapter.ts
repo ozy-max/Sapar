@@ -86,11 +86,7 @@ export class InstrumentedPspAdapter implements PspAdapter {
 export class InstrumentedReceiptIssuer implements ReceiptIssuer {
   constructor(private readonly inner: FakeReceiptIssuer) {}
 
-  async issueReceipt(
-    paymentIntentId: string,
-    amount: number,
-    currency: string,
-  ): Promise<void> {
+  async issueReceipt(paymentIntentId: string, amount: number, currency: string): Promise<void> {
     const start = performance.now();
     try {
       await this.inner.issueReceipt(paymentIntentId, amount, currency);

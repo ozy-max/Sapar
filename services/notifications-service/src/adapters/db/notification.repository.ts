@@ -51,10 +51,7 @@ export class NotificationRepository {
     return this.prisma.notification.findUnique({ where: { id } });
   }
 
-  async findByIdempotencyKey(
-    idempotencyKey: string,
-    userId: string,
-  ): Promise<Notification | null> {
+  async findByIdempotencyKey(idempotencyKey: string, userId: string): Promise<Notification | null> {
     return this.prisma.notification.findUnique({
       where: {
         idempotencyKey_userId: { idempotencyKey, userId },
@@ -92,10 +89,7 @@ export class NotificationRepository {
     return rows.map((r) => r.id);
   }
 
-  async lockById(
-    id: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<NotificationRow | null> {
+  async lockById(id: string, tx: Prisma.TransactionClient): Promise<NotificationRow | null> {
     const rows = await tx.$queryRaw<NotificationRow[]>`
       SELECT * FROM notifications
       WHERE id = ${id}::uuid

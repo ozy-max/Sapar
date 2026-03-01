@@ -24,7 +24,12 @@ import { normalizeRoute } from './observability/route-normalizer';
         serializers: {
           req(req: Record<string, unknown>): Record<string, unknown> {
             const url = (req['url'] as string) ?? '/';
-            return { id: req['id'], method: req['method'], url, route: normalizeRoute(url) };
+            return {
+              id: req['id'],
+              method: req['method'],
+              url,
+              route: normalizeRoute(url),
+            };
           },
           res(res: Record<string, unknown>): Record<string, unknown> {
             return { statusCode: res['statusCode'] };

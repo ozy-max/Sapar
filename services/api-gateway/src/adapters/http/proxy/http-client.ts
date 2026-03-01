@@ -14,6 +14,16 @@ export function getSharedDispatcher(): Dispatcher {
   return sharedDispatcher;
 }
 
+export async function closeSharedDispatcher(): Promise<void> {
+  if (!sharedDispatcher) return;
+  try {
+    await (sharedDispatcher as Agent).close();
+  } catch {
+    /* best-effort */
+  }
+  sharedDispatcher = undefined;
+}
+
 export function resetSharedDispatcher(): void {
   sharedDispatcher = undefined;
 }

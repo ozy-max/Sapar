@@ -18,9 +18,7 @@ export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.logger.log(
-      `Starting receipt worker, poll interval: ${env.RECEIPT_POLL_INTERVAL_MS}ms`,
-    );
+    this.logger.log(`Starting receipt worker, poll interval: ${env.RECEIPT_POLL_INTERVAL_MS}ms`);
     this.intervalHandle = setInterval(() => {
       void this.tick();
     }, env.RECEIPT_POLL_INTERVAL_MS);
@@ -42,7 +40,9 @@ export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
       if (result.retried > 0) recordReceiptStatus('pending', result.retried);
       if (result.failedFinal > 0) recordReceiptStatus('failed_final', result.failedFinal);
       if (result.total > 0) {
-        this.logger.log(`Processed ${result.total} receipt(s): issued=${result.issued}, retried=${result.retried}, failedFinal=${result.failedFinal}`);
+        this.logger.log(
+          `Processed ${result.total} receipt(s): issued=${result.issued}, retried=${result.retried}, failedFinal=${result.failedFinal}`,
+        );
       }
     } catch (error) {
       this.logger.error(error, 'Receipt worker tick failed');

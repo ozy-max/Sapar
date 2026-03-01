@@ -8,11 +8,9 @@ export const SUPPORT_USER_ID = '00000000-0000-4000-a000-000000000003';
 export const NO_ROLE_USER_ID = '00000000-0000-4000-a000-000000000004';
 
 export function signToken(userId: string, roles: string[]): string {
-  return jwt.sign(
-    { sub: userId, email: `${userId}@test.com`, roles },
-    JWT_SECRET,
-    { expiresIn: 3600 },
-  );
+  return jwt.sign({ sub: userId, email: `${userId}@test.com`, roles }, JWT_SECRET, {
+    expiresIn: 3600,
+  });
 }
 
 export function auth(userId: string, roles: string[]): string {

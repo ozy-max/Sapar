@@ -39,7 +39,12 @@ export class HandleBookingCreatedHandler implements EventHandler {
       select: { id: true, status: true },
     });
     if (existing) {
-      this.logger.log({ msg: 'Payment intent already exists for booking', bookingId: p.bookingId, status: existing.status, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Payment intent already exists for booking',
+        bookingId: p.bookingId,
+        status: existing.status,
+        traceId: event.traceId,
+      });
       return;
     }
 

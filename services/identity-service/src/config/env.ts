@@ -12,7 +12,9 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(3001),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     NODE_ENV: nodeEnvSchema,
-    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+    LOG_LEVEL: z
+      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+      .default('info'),
 
     JWT_ACCESS_SECRET: z.string().min(1),
     JWT_ACCESS_TTL_SEC: z.coerce.number().int().positive().default(900),

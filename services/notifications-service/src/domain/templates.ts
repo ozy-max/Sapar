@@ -3,7 +3,10 @@ export interface TemplateDefinition {
   body: string;
 }
 
-type TemplateRegistry = Record<string, Partial<Record<'SMS' | 'EMAIL' | 'PUSH', TemplateDefinition>>>;
+type TemplateRegistry = Record<
+  string,
+  Partial<Record<'SMS' | 'EMAIL' | 'PUSH', TemplateDefinition>>
+>;
 
 const templates: TemplateRegistry = {
   BOOKING_CONFIRMED: {

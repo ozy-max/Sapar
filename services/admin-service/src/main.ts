@@ -10,7 +10,10 @@ import { loadEnv } from './config/env';
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
 
   app.use(requestIdMiddleware);
   app.use(httpMetricsMiddleware);

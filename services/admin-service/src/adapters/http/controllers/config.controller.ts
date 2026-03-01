@@ -27,7 +27,12 @@ import { GetConfigsUseCase } from '../../../application/get-configs.usecase';
 import { GetConfigByKeyUseCase } from '../../../application/get-config-by-key.usecase';
 import { UpsertConfigUseCase } from '../../../application/upsert-config.usecase';
 import { DeleteConfigUseCase } from '../../../application/delete-config.usecase';
-import { upsertConfigSchema, UpsertConfigInput, UpsertConfigBodyDto, ConfigResponseDto } from '../dto/config.dto';
+import {
+  upsertConfigSchema,
+  UpsertConfigInput,
+  UpsertConfigBodyDto,
+  ConfigResponseDto,
+} from '../dto/config.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
 import { ValidationError } from '../../../shared/errors';
 
@@ -117,7 +122,9 @@ export class ConfigController {
 
   private validateKeyLength(key: string): void {
     if (key.length > 256) {
-      throw new ValidationError({ key: 'Config key must be at most 256 characters' });
+      throw new ValidationError({
+        key: 'Config key must be at most 256 characters',
+      });
     }
   }
 }

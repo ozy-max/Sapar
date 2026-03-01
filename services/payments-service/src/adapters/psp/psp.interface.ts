@@ -21,11 +21,7 @@ export interface PspAdapter {
 export const PSP_ADAPTER = Symbol('PSP_ADAPTER');
 
 export interface ReceiptIssuer {
-  issueReceipt(
-    paymentIntentId: string,
-    amount: number,
-    currency: string,
-  ): Promise<void>;
+  issueReceipt(paymentIntentId: string, amount: number, currency: string): Promise<void>;
 }
 
 export const RECEIPT_ISSUER = Symbol('RECEIPT_ISSUER');

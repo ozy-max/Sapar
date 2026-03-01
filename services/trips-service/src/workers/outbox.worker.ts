@@ -10,6 +10,39 @@ import {
   recordOutboxDeliveryError,
   recordOutboxEvent,
 } from '../observability/outbox-metrics';
+import {
+  CircuitBreaker,
+  CircuitOpenError,
+  DEFAULT_CB_CONFIG,
+  CircuitBreakerListener,
+  CircuitState,
+} from '../shared/resilience/circuit-breaker';
+import {
+  circuitBreakerState,
+  circuitBreakerOpenTotal,
+  outboundFailuresTotal,
+} from '../observability/metrics.registry';
+
+const STATES: readonly CircuitState[] = ['CLOSED', 'OPEN', 'HALF_OPEN'];
+
+const breakerListener: CircuitBreakerListener = {
+  onStateChange(name: string, _from: CircuitState, to: CircuitState): void {
+    for (const s of STATES) {
+      circuitBreakerState.labels(SERVICE_NAME, name, s.toLowerCase()).set(s === to ? 1 : 0);
+    }
+    if (to === 'OPEN') {
+      circuitBreakerOpenTotal.labels(SERVICE_NAME, name).inc();
+    }
+  },
+};
+
+function targetLabel(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
 
 @Injectable()
 export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
@@ -17,6 +50,7 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
   private intervalHandle?: ReturnType<typeof setInterval>;
   private running = false;
   private currentTick?: Promise<void>;
+  private readonly breakers = new Map<string, CircuitBreaker>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,12 +96,23 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private getBreakerForTarget(targetUrl: string): CircuitBreaker {
+    let breaker = this.breakers.get(targetUrl);
+    if (!breaker) {
+      breaker = new CircuitBreaker(
+        { ...DEFAULT_CB_CONFIG, name: `outbox-${targetLabel(targetUrl)}` },
+        breakerListener,
+      );
+      this.breakers.set(targetUrl, breaker);
+    }
+    return breaker;
+  }
+
   private async processEvent(eventId: string): Promise<void> {
     const env = loadEnv();
     const backoff = getOutboxBackoffSchedule();
     const targets = parseOutboxTargets(env.OUTBOX_TARGETS);
 
-    // Phase 1: Lock + read in short TX
     const event = await this.prisma.$transaction(
       async (tx) => {
         const locked = await this.outboxRepo.lockById(eventId, tx);
@@ -93,43 +138,56 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
     const body = JSON.stringify(envelope);
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = signEvent(body, timestamp, env.EVENTS_HMAC_SECRET);
+    const breaker = this.getBreakerForTarget(targetUrl);
 
-    // Phase 2: HTTP delivery OUTSIDE TX
     let deliverySuccess = false;
     let latencyMs = 0;
     let errorMsg = '';
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
+      await breaker.execute(
+        async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
 
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Event-Signature': signature,
-          'X-Event-Timestamp': String(timestamp),
-          'X-Request-Id': event.trace_id,
+          const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Event-Signature': signature,
+              'X-Event-Timestamp': String(timestamp),
+              'X-Request-Id': event.trace_id,
+            },
+            body,
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+
+          if (response.status >= 500) {
+            const responseText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
+          }
+
+          if (!response.ok) {
+            const responseText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
+          }
         },
-        body,
-        signal: controller.signal,
-      });
+        { traceId: event.trace_id },
+      );
 
-      clearTimeout(timeout);
       latencyMs = Date.now() - startMs;
-
-      if (response.ok) {
-        deliverySuccess = true;
-      } else {
-        const responseText = await response.text();
-        errorMsg = `HTTP ${response.status}: ${responseText}`;
-      }
+      deliverySuccess = true;
     } catch (err) {
       latencyMs = Date.now() - startMs;
-      errorMsg = err instanceof Error ? err.message : String(err);
+      if (err instanceof CircuitOpenError) {
+        errorMsg = `Circuit breaker open for ${targetLabel(targetUrl)}`;
+      } else {
+        errorMsg = err instanceof Error ? err.message : String(err);
+      }
     }
 
-    // Phase 3: Update status in new short TX
     await this.prisma.$transaction(
       async (tx) => {
         const current = await this.outboxRepo.lockById(eventId, tx);
@@ -151,6 +209,9 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
         } else {
           const nextTry = event.try_count + 1;
           recordOutboxDeliveryError(targetUrl);
+          outboundFailuresTotal
+            .labels(SERVICE_NAME, targetLabel(targetUrl), 'outbox_delivery')
+            .inc();
 
           if (nextTry >= env.OUTBOX_RETRY_N) {
             await this.outboxRepo.markFailedFinal(event.id, nextTry, errorMsg, tx);

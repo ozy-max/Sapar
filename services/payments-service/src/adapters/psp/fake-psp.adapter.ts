@@ -57,11 +57,7 @@ export class FakeReceiptIssuer implements ReceiptIssuer {
     this.shouldFail = fail;
   }
 
-  async issueReceipt(
-    _paymentIntentId: string,
-    _amount: number,
-    _currency: string,
-  ): Promise<void> {
+  async issueReceipt(_paymentIntentId: string, _amount: number, _currency: string): Promise<void> {
     if (this.shouldFail) {
       throw new Error('Receipt issuing failed (fake)');
     }

@@ -36,7 +36,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       this.logger.log('AdminCommandWorker disabled in test environment');
       return;
     }
-    this.logger.log(`Starting AdminCommandWorker, poll interval: ${env.COMMAND_POLL_INTERVAL_MS}ms`);
+    this.logger.log(
+      `Starting AdminCommandWorker, poll interval: ${env.COMMAND_POLL_INTERVAL_MS}ms`,
+    );
     this.intervalHandle = setInterval(() => void this.tick(), env.COMMAND_POLL_INTERVAL_MS);
   }
 
@@ -93,7 +95,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       return data.items;
     } catch (error) {
       clearTimeout(timeout);
-      this.logger.warn(`Failed to fetch commands: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Failed to fetch commands: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -108,7 +112,11 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
         case 'BAN_USER': {
           const parsed = banUserPayloadSchema.safeParse(cmd.payload);
           if (!parsed.success) {
-            this.logger.warn({ msg: 'Invalid BAN_USER payload', errors: parsed.error.flatten(), commandId: cmd.id });
+            this.logger.warn({
+              msg: 'Invalid BAN_USER payload',
+              errors: parsed.error.flatten(),
+              commandId: cmd.id,
+            });
             ackStatus = 'APPLIED';
             break;
           }
@@ -131,7 +139,11 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
         case 'UNBAN_USER': {
           const parsed = unbanUserPayloadSchema.safeParse(cmd.payload);
           if (!parsed.success) {
-            this.logger.warn({ msg: 'Invalid UNBAN_USER payload', errors: parsed.error.flatten(), commandId: cmd.id });
+            this.logger.warn({
+              msg: 'Invalid UNBAN_USER payload',
+              errors: parsed.error.flatten(),
+              commandId: cmd.id,
+            });
             ackStatus = 'APPLIED';
             break;
           }
@@ -156,12 +168,24 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       ackStatus = 'FAILED_RETRY';
       ackError = error instanceof Error ? error.message : String(error);
-      this.logger.error({ msg: 'Command processing failed', commandId: cmd.id, error: ackError, traceId: cmd.traceId });
+      this.logger.error({
+        msg: 'Command processing failed',
+        commandId: cmd.id,
+        error: ackError,
+        traceId: cmd.traceId,
+      });
     }
 
     await this.ackCommand(cmd.id, ackStatus, ackError);
     const durationMs = Date.now() - startMs;
-    this.logger.log({ msg: 'Command processed', commandId: cmd.id, type: cmd.type, status: ackStatus, durationMs, traceId: cmd.traceId });
+    this.logger.log({
+      msg: 'Command processed',
+      commandId: cmd.id,
+      type: cmd.type,
+      status: ackStatus,
+      durationMs,
+      traceId: cmd.traceId,
+    });
   }
 
   private async ackCommand(
@@ -192,7 +216,9 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       clearTimeout(timeout);
     } catch (err) {
       clearTimeout(timeout);
-      this.logger.warn(`Failed to ack command ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `Failed to ack command ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

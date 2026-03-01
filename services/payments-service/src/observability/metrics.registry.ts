@@ -1,10 +1,4 @@
-import {
-  Registry,
-  Counter,
-  Histogram,
-  Gauge,
-  collectDefaultMetrics,
-} from 'prom-client';
+import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
 
 export const SERVICE_NAME = 'payments-service';
 
@@ -49,6 +43,36 @@ export const appErrorsTotal = new Counter({
 export const httpServerErrorsTotal = new Counter({
   name: 'http_server_errors_total',
   help: 'Total 5xx HTTP server responses',
+  registers: [registry],
+});
+
+/* ── Circuit Breaker ─────────────────────────────────────── */
+
+export const circuitBreakerState = new Gauge({
+  name: 'circuit_breaker_state',
+  help: 'Circuit breaker state (1 = active for given state)',
+  labelNames: ['service', 'target', 'state'] as const,
+  registers: [registry],
+});
+
+export const circuitBreakerOpenTotal = new Counter({
+  name: 'circuit_breaker_open_total',
+  help: 'Total times circuit breaker transitioned to OPEN',
+  labelNames: ['service', 'target'] as const,
+  registers: [registry],
+});
+
+export const outboundRetriesTotal = new Counter({
+  name: 'outbound_retries_total',
+  help: 'Total outbound call retries',
+  labelNames: ['service', 'target', 'operation'] as const,
+  registers: [registry],
+});
+
+export const outboundFailuresTotal = new Counter({
+  name: 'outbound_failures_total',
+  help: 'Total outbound call final failures',
+  labelNames: ['service', 'target', 'operation'] as const,
   registers: [registry],
 });
 

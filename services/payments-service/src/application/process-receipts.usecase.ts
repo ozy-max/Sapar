@@ -39,50 +39,31 @@ export class ProcessReceiptsUseCase {
 
           const intent = await this.intentRepo.findById(row.payment_intent_id);
           if (!intent) {
-            this.logger.warn(
-              `Receipt ${row.id}: intent ${row.payment_intent_id} not found`,
-            );
+            this.logger.warn(`Receipt ${row.id}: intent ${row.payment_intent_id} not found`);
             return;
           }
 
           const nextTry = row.try_count + 1;
 
           try {
-            await this.issuer.issueReceipt(
-              intent.id,
-              intent.amountKgs,
-              intent.currency,
-            );
+            await this.issuer.issueReceipt(intent.id, intent.amountKgs, intent.currency);
             await this.receiptRepo.markIssued(row.id, tx);
             result.issued++;
             this.logger.log(`Receipt ${row.id} issued on try ${nextTry}`);
           } catch (error) {
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
 
             if (nextTry >= maxRetries) {
-              await this.receiptRepo.markFailedFinal(
-                row.id,
-                errorMsg,
-                nextTry,
-                tx,
-              );
+              await this.receiptRepo.markFailedFinal(row.id, errorMsg, nextTry, tx);
               result.failedFinal++;
               this.logger.error(
                 `Receipt ${row.id} reached max retries (${maxRetries}), marking FAILED_FINAL`,
               );
             } else {
-              const delaySec =
-                backoff[nextTry - 1] ?? backoff[backoff.length - 1]!;
+              const delaySec = backoff[nextTry - 1] ?? backoff[backoff.length - 1]!;
               const nextRetryAt = new Date(Date.now() + delaySec * 1000);
 
-              await this.receiptRepo.markRetry(
-                row.id,
-                nextTry,
-                nextRetryAt,
-                errorMsg,
-                tx,
-              );
+              await this.receiptRepo.markRetry(row.id, nextTry, nextRetryAt, errorMsg, tx);
               result.retried++;
               this.logger.warn(
                 `Receipt ${row.id} failed try ${nextTry}, next retry at ${nextRetryAt.toISOString()}`,
@@ -93,10 +74,7 @@ export class ProcessReceiptsUseCase {
 
         result.total++;
       } catch (error) {
-        this.logger.error(
-          error,
-          `Failed to process receipt ${receiptId}`,
-        );
+        this.logger.error(error, `Failed to process receipt ${receiptId}`);
       }
     }
 

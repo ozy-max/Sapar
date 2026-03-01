@@ -6,6 +6,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './adapters/http/filters/all-exceptions.filter';
 import { requestIdMiddleware } from './adapters/http/middleware/request-id.middleware';
 import { getRedisClient, closeRedisClient } from './adapters/redis/redis.client';
+import { closeSharedDispatcher } from './adapters/http/proxy/http-client';
 import { RateLimitService } from './adapters/http/ratelimit/ratelimit.service';
 import { buildRateLimitPolicies } from './adapters/http/ratelimit/ratelimit.policy';
 import { createRateLimitGuard } from './adapters/http/ratelimit/ratelimit.guard';
@@ -65,9 +66,11 @@ async function bootstrap(): Promise<void> {
 
   process.on('SIGTERM', async () => {
     await closeRedisClient();
+    await closeSharedDispatcher();
   });
   process.on('SIGINT', async () => {
     await closeRedisClient();
+    await closeSharedDispatcher();
   });
 
   await app.listen(env.PORT, '0.0.0.0');

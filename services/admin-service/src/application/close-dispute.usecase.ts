@@ -35,15 +35,18 @@ export class CloseDisputeUseCase {
         data: { status: 'CLOSED' },
       });
 
-      await this.auditLogRepo.create({
-        actorUserId: input.actorUserId,
-        actorRoles: input.actorRoles,
-        action: 'DISPUTE_CLOSE',
-        targetType: 'Dispute',
-        targetId: input.disputeId,
-        payloadJson: {},
-        traceId: input.traceId,
-      }, tx);
+      await this.auditLogRepo.create(
+        {
+          actorUserId: input.actorUserId,
+          actorRoles: input.actorRoles,
+          action: 'DISPUTE_CLOSE',
+          targetType: 'Dispute',
+          targetId: input.disputeId,
+          payloadJson: {},
+          traceId: input.traceId,
+        },
+        tx,
+      );
 
       return updated;
     });

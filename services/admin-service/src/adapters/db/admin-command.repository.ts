@@ -28,10 +28,7 @@ export class AdminCommandRepository {
     });
   }
 
-  async findPendingByService(
-    service: string,
-    limit: number,
-  ): Promise<AdminCommand[]> {
+  async findPendingByService(service: string, limit: number): Promise<AdminCommand[]> {
     const rows = await this.prisma.$queryRaw<AdminCommand[]>`
       SELECT id, target_service AS "targetService", type, payload, status,
              try_count AS "tryCount", next_retry_at AS "nextRetryAt",
@@ -73,11 +70,7 @@ export class AdminCommandRepository {
     });
   }
 
-  async markFailedFinal(
-    id: string,
-    tryCount: number,
-    lastError: string,
-  ): Promise<void> {
+  async markFailedFinal(id: string, tryCount: number, lastError: string): Promise<void> {
     await this.prisma.adminCommand.update({
       where: { id },
       data: {
@@ -97,7 +90,9 @@ export class AdminCommandRepository {
     status: 'APPLIED' | 'FAILED_RETRY' | 'FAILED_FINAL',
     error?: string,
   ): Promise<AdminCommand> {
-    const command = await this.prisma.adminCommand.findUnique({ where: { id } });
+    const command = await this.prisma.adminCommand.findUnique({
+      where: { id },
+    });
     if (!command) {
       throw new Error(`AdminCommand ${id} not found`);
     }

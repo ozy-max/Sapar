@@ -3,6 +3,7 @@ services:
     image: prom/prometheus:v2.51.0
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - '127.0.0.1:9090:9090'

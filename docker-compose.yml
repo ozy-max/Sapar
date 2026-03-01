@@ -36,7 +36,7 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@postgres:5432/sapar_gateway
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       IDENTITY_BASE_URL: http://identity-service:3001
       TRIPS_BASE_URL: http://trips-service:3002
@@ -96,11 +96,14 @@ services:
     environment:
       PORT: 3001
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@identity-postgres:5432/sapar_identity
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env.docker}
       JWT_ACCESS_TTL_SEC: ${JWT_ACCESS_TTL_SEC}
       REFRESH_TOKEN_TTL_SEC: ${REFRESH_TOKEN_TTL_SEC}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      ADMIN_BASE_URL: http://admin-service:3005
+      CONFIG_BASE_URL: http://admin-service:3005
     depends_on:
       identity-postgres:
         condition: service_healthy
@@ -136,7 +139,7 @@ services:
     environment:
       PORT: 3002
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@trips-postgres:5432/sapar_trips
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET:?Set EVENTS_HMAC_SECRET in .env.docker}
@@ -178,7 +181,7 @@ services:
     environment:
       PORT: 3003
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@payments-postgres:5432/sapar_payments
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       PSP_TIMEOUT_MS: 5000
@@ -223,7 +226,7 @@ services:
     environment:
       PORT: 3004
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@notifications-postgres:5432/sapar_notifications
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       NOTIF_RETRY_N: 5
@@ -267,7 +270,7 @@ services:
     environment:
       PORT: 3005
       DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@admin-postgres:5432/sapar_admin
-      NODE_ENV: development
+      NODE_ENV: production
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}

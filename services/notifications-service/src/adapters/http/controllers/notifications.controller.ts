@@ -11,13 +11,7 @@ import {
   ParseUUIDPipe,
   Headers,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiHeader,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
 import { Request } from 'express';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';

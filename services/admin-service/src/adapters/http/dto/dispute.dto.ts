@@ -10,13 +10,15 @@ export const createDisputeSchema = z.object({
 
 export type CreateDisputeInput = z.infer<typeof createDisputeSchema>;
 
-export const resolveDisputeSchema = z.object({
-  resolution: z.enum(['REFUND', 'NO_REFUND', 'PARTIAL', 'BAN_USER']),
-  refundAmountKgs: z.number().int().positive().optional(),
-}).refine(
-  (data) => data.resolution !== 'PARTIAL' || data.refundAmountKgs !== undefined,
-  { message: 'refundAmountKgs is required for PARTIAL resolution', path: ['refundAmountKgs'] },
-);
+export const resolveDisputeSchema = z
+  .object({
+    resolution: z.enum(['REFUND', 'NO_REFUND', 'PARTIAL', 'BAN_USER']),
+    refundAmountKgs: z.number().int().positive().optional(),
+  })
+  .refine((data) => data.resolution !== 'PARTIAL' || data.refundAmountKgs !== undefined, {
+    message: 'refundAmountKgs is required for PARTIAL resolution',
+    path: ['refundAmountKgs'],
+  });
 
 export type ResolveDisputeInput = z.infer<typeof resolveDisputeSchema>;
 
@@ -35,10 +37,16 @@ export class CreateDisputeBodyDto {
 }
 
 export class ResolveDisputeBodyDto {
-  @ApiProperty({ example: 'REFUND', enum: ['REFUND', 'NO_REFUND', 'PARTIAL', 'BAN_USER'] })
+  @ApiProperty({
+    example: 'REFUND',
+    enum: ['REFUND', 'NO_REFUND', 'PARTIAL', 'BAN_USER'],
+  })
   resolution!: string;
 
-  @ApiPropertyOptional({ example: 500, description: 'Required for PARTIAL resolution' })
+  @ApiPropertyOptional({
+    example: 500,
+    description: 'Required for PARTIAL resolution',
+  })
   refundAmountKgs?: number;
 }
 

@@ -46,6 +46,38 @@ export const httpServerErrorsTotal = new Counter({
   registers: [registry],
 });
 
+/* ── Circuit Breaker ─────────────────────────────────────── */
+
+export const circuitBreakerState = new Gauge({
+  name: 'circuit_breaker_state',
+  help: 'Circuit breaker state (1 = active for given state)',
+  labelNames: ['service', 'target', 'state'] as const,
+  registers: [registry],
+});
+
+export const circuitBreakerOpenTotal = new Counter({
+  name: 'circuit_breaker_open_total',
+  help: 'Total times circuit breaker transitioned to OPEN',
+  labelNames: ['service', 'target'] as const,
+  registers: [registry],
+});
+
+/* ── Outbound retries / failures ─────────────────────────── */
+
+export const outboundRetriesTotal = new Counter({
+  name: 'outbound_retries_total',
+  help: 'Total outbound call retries',
+  labelNames: ['service', 'target', 'operation'] as const,
+  registers: [registry],
+});
+
+export const outboundFailuresTotal = new Counter({
+  name: 'outbound_failures_total',
+  help: 'Total outbound call final failures',
+  labelNames: ['service', 'target', 'operation'] as const,
+  registers: [registry],
+});
+
 /* ── Redis (rate-limiter) ────────────────────────────────── */
 
 export const redisRequestDurationMs = new Histogram({

@@ -3,10 +3,7 @@ import { NotificationRepository } from '../adapters/db/notification.repository';
 import { NotificationEventRepository } from '../adapters/db/notification-event.repository';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { getTemplate } from '../domain/templates';
-import {
-  TemplateNotFoundError,
-  IdempotencyConflictError,
-} from '../shared/errors';
+import { TemplateNotFoundError, IdempotencyConflictError } from '../shared/errors';
 
 export interface EnqueueInput {
   userId: string;

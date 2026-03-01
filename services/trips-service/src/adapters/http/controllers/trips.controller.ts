@@ -40,7 +40,12 @@ import {
   SearchTripsQueryDto,
   SearchTripsResponseDto,
 } from '../dto/search-trips.dto';
-import { bookSeatSchema, BookSeatInput, BookSeatBodyDto, BookSeatResponseDto } from '../dto/book-seat.dto';
+import {
+  bookSeatSchema,
+  BookSeatInput,
+  BookSeatBodyDto,
+  BookSeatResponseDto,
+} from '../dto/book-seat.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
 
 @ApiTags('trips')

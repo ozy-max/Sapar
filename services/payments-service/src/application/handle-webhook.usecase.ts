@@ -4,10 +4,7 @@ import { PrismaService } from '../adapters/db/prisma.service';
 import { PaymentIntentRepository } from '../adapters/db/payment-intent.repository';
 import { PaymentEventRepository } from '../adapters/db/payment-event.repository';
 import { loadEnv } from '../config/env';
-import {
-  WebhookSignatureInvalidError,
-  PaymentIntentNotFoundError,
-} from '../shared/errors';
+import { WebhookSignatureInvalidError, PaymentIntentNotFoundError } from '../shared/errors';
 import { PaymentEventType, Prisma } from '@prisma/client';
 import { canTransition, PaymentIntentStatus } from '../domain/payment-intent.entity';
 
@@ -18,7 +15,10 @@ export interface WebhookPayload {
   data?: Record<string, unknown>;
 }
 
-const WEBHOOK_TYPE_MAP: Record<string, { intentStatus: PaymentIntentStatus; eventType: PaymentEventType }> = {
+const WEBHOOK_TYPE_MAP: Record<
+  string,
+  { intentStatus: PaymentIntentStatus; eventType: PaymentEventType }
+> = {
   'hold.succeeded': { intentStatus: PaymentIntentStatus.HOLD_PLACED, eventType: 'HOLD_PLACED' },
   'capture.succeeded': { intentStatus: PaymentIntentStatus.CAPTURED, eventType: 'CAPTURED' },
   'hold.failed': { intentStatus: PaymentIntentStatus.FAILED, eventType: 'FAILED' },
@@ -66,9 +66,7 @@ export class HandleWebhookUseCase {
   }
 
   async execute(payload: WebhookPayload): Promise<void> {
-    const alreadyProcessed = await this.eventRepo.existsByExternalEventId(
-      payload.eventId,
-    );
+    const alreadyProcessed = await this.eventRepo.existsByExternalEventId(payload.eventId);
     if (alreadyProcessed) {
       this.logger.log(`Webhook event ${payload.eventId} already processed, skipping`);
       return;
@@ -77,7 +75,11 @@ export class HandleWebhookUseCase {
     try {
       const mapping = WEBHOOK_TYPE_MAP[payload.type];
       if (!mapping) {
-        this.logger.warn({ msg: 'Unknown webhook event type, ignoring', type: payload.type, pspIntentId: payload.pspIntentId });
+        this.logger.warn({
+          msg: 'Unknown webhook event type, ignoring',
+          type: payload.type,
+          pspIntentId: payload.pspIntentId,
+        });
         return;
       }
 
@@ -123,11 +125,10 @@ export class HandleWebhookUseCase {
         );
       });
     } catch (error: unknown) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        this.logger.log(`Webhook event ${payload.eventId} duplicate (concurrent), treating as idempotent`);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        this.logger.log(
+          `Webhook event ${payload.eventId} duplicate (concurrent), treating as idempotent`,
+        );
         return;
       }
       throw error;

@@ -35,12 +35,20 @@ export class OnPaymentHoldPlacedHandler implements EventHandler {
     const booking = rows[0];
 
     if (!booking) {
-      this.logger.warn({ msg: 'Booking not found for hold_placed', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.warn({
+        msg: 'Booking not found for hold_placed',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       return;
     }
 
     if (booking.status === 'CONFIRMED') {
-      this.logger.log({ msg: 'Booking already CONFIRMED (idempotent)', bookingId: p.bookingId, traceId: event.traceId });
+      this.logger.log({
+        msg: 'Booking already CONFIRMED (idempotent)',
+        bookingId: p.bookingId,
+        traceId: event.traceId,
+      });
       recordSagaOutcome('trips', 'confirm', 'success');
       return;
     }

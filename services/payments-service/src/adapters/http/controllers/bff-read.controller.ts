@@ -80,9 +80,7 @@ export class BffReadController {
 
     const intentIds = intents.map((i) => i.id);
     const receipts = await this.receiptRepo.findByPaymentIntentIds(intentIds);
-    const receiptMap = new Map(
-      receipts.map((r) => [r.paymentIntentId, r.status]),
-    );
+    const receiptMap = new Map(receipts.map((r) => [r.paymentIntentId, r.status]));
 
     const items: PaymentSummary[] = ids.map((bookingId) => {
       const intent = intentMap.get(bookingId);

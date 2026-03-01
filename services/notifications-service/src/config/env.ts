@@ -85,7 +85,8 @@ export function getBackoffSchedule(): number[] {
     if (isNaN(n) || n < 0) throw new Error(`Invalid NOTIF_BACKOFF_SEC_LIST value: '${s.trim()}'`);
     return n;
   });
-  if (values.length === 0) throw new Error('NOTIF_BACKOFF_SEC_LIST must contain at least one value');
+  if (values.length === 0)
+    throw new Error('NOTIF_BACKOFF_SEC_LIST must contain at least one value');
   return values;
 }
 
@@ -96,7 +97,8 @@ export function getOutboxBackoffSchedule(): number[] {
     if (isNaN(n) || n < 0) throw new Error(`Invalid OUTBOX_BACKOFF_SEC_LIST value: '${s.trim()}'`);
     return n;
   });
-  if (values.length === 0) throw new Error('OUTBOX_BACKOFF_SEC_LIST must contain at least one value');
+  if (values.length === 0)
+    throw new Error('OUTBOX_BACKOFF_SEC_LIST must contain at least one value');
   return values;
 }
 

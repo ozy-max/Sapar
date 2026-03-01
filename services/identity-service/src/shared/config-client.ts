@@ -31,7 +31,9 @@ export class ConfigClient implements OnModuleInit {
     try {
       await this.refresh();
     } catch (error) {
-      this.logger.warn(`Initial config fetch failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Initial config fetch failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

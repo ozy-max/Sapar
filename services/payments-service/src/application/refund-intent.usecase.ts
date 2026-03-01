@@ -36,9 +36,7 @@ export class RefundIntentUseCase {
         if (row.payer_id !== userId) throw new ForbiddenPaymentError();
 
         if (row.status !== 'CAPTURED') {
-          throw new InvalidPaymentStateError(
-            `Cannot refund: current status is ${row.status}`,
-          );
+          throw new InvalidPaymentStateError(`Cannot refund: current status is ${row.status}`);
         }
 
         if (!row.psp_intent_id) {
@@ -46,10 +44,7 @@ export class RefundIntentUseCase {
         }
 
         try {
-          await withTimeout(
-            this.psp.refund(row.psp_intent_id, row.amount_kgs),
-            env.PSP_TIMEOUT_MS,
-          );
+          await withTimeout(this.psp.refund(row.psp_intent_id, row.amount_kgs), env.PSP_TIMEOUT_MS);
         } catch (error) {
           this.logger.error(error, 'PSP refund failed');
           throw new PspUnavailableError();
