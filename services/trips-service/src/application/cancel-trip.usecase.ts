@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TripStatus, BookingStatus } from '@prisma/client';
+import { TripStatus } from '@prisma/client';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { TripRepository } from '../adapters/db/trip.repository';
 import { OutboxService } from '../shared/outbox.service';
@@ -43,8 +43,11 @@ export class CancelTripUseCase {
       });
 
       await tx.booking.updateMany({
-        where: { tripId: input.tripId, status: BookingStatus.ACTIVE },
-        data: { status: BookingStatus.CANCELLED },
+        where: {
+          tripId: input.tripId,
+          status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+        },
+        data: { status: 'CANCELLED' },
       });
 
       await this.outboxService.publish(

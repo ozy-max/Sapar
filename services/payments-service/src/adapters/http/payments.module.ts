@@ -8,6 +8,8 @@ import { CancelIntentUseCase } from '../../application/cancel-intent.usecase';
 import { RefundIntentUseCase } from '../../application/refund-intent.usecase';
 import { HandleWebhookUseCase } from '../../application/handle-webhook.usecase';
 import { HandleBookingCreatedHandler } from '../../application/handlers/handle-booking-created.handler';
+import { OnBookingConfirmedHandler } from '../../application/handlers/on-booking-confirmed.handler';
+import { OnBookingCancelledHandler } from '../../application/handlers/on-booking-cancelled.handler';
 import { HmacGuard } from './guards/hmac.guard';
 
 @Module({
@@ -19,6 +21,8 @@ import { HmacGuard } from './guards/hmac.guard';
     RefundIntentUseCase,
     HandleWebhookUseCase,
     HandleBookingCreatedHandler,
+    OnBookingConfirmedHandler,
+    OnBookingCancelledHandler,
     HmacGuard,
   ],
 })

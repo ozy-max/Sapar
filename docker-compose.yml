@@ -117,7 +117,9 @@ services:
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
       EVENTS_HMAC_SECRET: sapar-events-hmac-secret-min-32-chars!!
-      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events
+      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events
+      BOOKING_TTL_SEC: 900
+      EXPIRATION_WORKER_INTERVAL_MS: 1000
     depends_on:
       trips-postgres:
         condition: service_healthy
@@ -156,7 +158,7 @@ services:
       RECEIPT_BACKOFF_SEC_LIST: '5,30,300'
       RECEIPT_POLL_INTERVAL_MS: 5000
       EVENTS_HMAC_SECRET: sapar-events-hmac-secret-min-32-chars!!
-      OUTBOX_TARGETS: payment.intent.hold_placed>http://notifications-service:3004/internal/events,payment.captured>http://notifications-service:3004/internal/events,payment.cancelled>http://notifications-service:3004/internal/events,payment.refunded>http://notifications-service:3004/internal/events
+      OUTBOX_TARGETS: payment.intent.hold_placed>http://trips-service:3002/internal/events,payment.intent.failed>http://trips-service:3002/internal/events,payment.captured>http://notifications-service:3004/internal/events,payment.cancelled>http://notifications-service:3004/internal/events,payment.refunded>http://notifications-service:3004/internal/events
     depends_on:
       payments-postgres:
         condition: service_healthy

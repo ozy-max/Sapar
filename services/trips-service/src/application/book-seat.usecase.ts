@@ -56,7 +56,11 @@ export class BookSeatUseCase {
         if (trip.seatsAvailable < input.seats) throw new NotEnoughSeatsError();
 
         const existingBooking = await tx.booking.findFirst({
-          where: { tripId: input.tripId, passengerId: input.passengerId, status: 'ACTIVE' },
+          where: {
+            tripId: input.tripId,
+            passengerId: input.passengerId,
+            status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+          },
         });
         if (existingBooking) throw new BookingExistsError();
 
@@ -65,7 +69,7 @@ export class BookSeatUseCase {
             tripId: input.tripId,
             passengerId: input.passengerId,
             seats: input.seats,
-            status: 'ACTIVE',
+            status: 'PENDING_PAYMENT',
           },
         });
 
@@ -90,6 +94,7 @@ export class BookSeatUseCase {
           });
         }
 
+        const amountKgs = trip.priceKgs * input.seats;
         await this.outboxService.publish(
           {
             eventType: 'booking.created',
@@ -98,7 +103,10 @@ export class BookSeatUseCase {
               tripId: input.tripId,
               passengerId: input.passengerId,
               seats: input.seats,
-              priceKgs: trip.priceKgs,
+              amountKgs,
+              currency: 'KGS',
+              departAt: trip.departAt.toISOString(),
+              createdAt: booking.createdAt.toISOString(),
             },
             traceId: input.traceId,
           },

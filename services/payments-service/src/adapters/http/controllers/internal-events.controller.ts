@@ -13,6 +13,8 @@ import { EventEnvelope } from '../../../shared/event-envelope';
 import { EventHandler } from '../../../shared/event-handler.interface';
 import { HmacGuard } from '../guards/hmac.guard';
 import { HandleBookingCreatedHandler } from '../../../application/handlers/handle-booking-created.handler';
+import { OnBookingConfirmedHandler } from '../../../application/handlers/on-booking-confirmed.handler';
+import { OnBookingCancelledHandler } from '../../../application/handlers/on-booking-cancelled.handler';
 import { recordConsumerEvent } from '../../../observability/outbox-metrics';
 
 @Controller('internal/events')
@@ -24,9 +26,14 @@ export class InternalEventsController {
     private readonly prisma: PrismaService,
     private readonly consumedRepo: ConsumedEventRepository,
     bookingCreatedHandler: HandleBookingCreatedHandler,
+    bookingConfirmedHandler: OnBookingConfirmedHandler,
+    bookingCancelledHandler: OnBookingCancelledHandler,
   ) {
     this.handlerMap = new Map<string, EventHandler>([
       [bookingCreatedHandler.eventType, bookingCreatedHandler],
+      [bookingConfirmedHandler.eventType, bookingConfirmedHandler],
+      [bookingCancelledHandler.eventType, bookingCancelledHandler],
+      ['booking.expired', bookingCancelledHandler],
     ]);
   }
 
@@ -47,22 +54,25 @@ export class InternalEventsController {
       return { status: 'duplicate' };
     }
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const exists = await this.consumedRepo.existsInTx(envelope.eventId, tx);
-      if (exists) return;
+    await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const exists = await this.consumedRepo.existsInTx(envelope.eventId, tx);
+        if (exists) return;
 
-      await handler.handle(envelope, tx);
+        await handler.handle(envelope, tx);
 
-      await this.consumedRepo.create(
-        {
-          eventId: envelope.eventId,
-          eventType: envelope.eventType,
-          producer: envelope.producer,
-          traceId: envelope.traceId,
-        },
-        tx,
-      );
-    });
+        await this.consumedRepo.create(
+          {
+            eventId: envelope.eventId,
+            eventType: envelope.eventType,
+            producer: envelope.producer,
+            traceId: envelope.traceId,
+          },
+          tx,
+        );
+      },
+      { timeout: 15_000 },
+    );
 
     recordConsumerEvent(envelope.eventType, 'processed');
     this.logger.log({

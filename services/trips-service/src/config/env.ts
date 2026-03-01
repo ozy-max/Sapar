@@ -24,6 +24,8 @@ const envSchema = z
     OUTBOX_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
     EVENTS_HMAC_SECRET: z.string().min(1).default('hmac-secret-for-dev-at-least-32-chars!!'),
     OUTBOX_TARGETS: z.string().default(''),
+    BOOKING_TTL_SEC: z.coerce.number().int().positive().default(900),
+    EXPIRATION_WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
   })
   .superRefine((_val, ctx) => {
     if (

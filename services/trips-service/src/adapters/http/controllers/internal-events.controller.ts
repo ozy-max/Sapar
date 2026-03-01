@@ -12,8 +12,8 @@ import { ConsumedEventRepository } from '../../db/consumed-event.repository';
 import { EventEnvelope } from '../../../shared/event-envelope';
 import { EventHandler } from '../../../shared/event-handler.interface';
 import { HmacGuard } from '../guards/hmac.guard';
-import { HandlePaymentHoldPlacedHandler } from '../../../application/handlers/handle-payment-hold-placed.handler';
-import { HandlePaymentCapturedHandler } from '../../../application/handlers/handle-payment-captured.handler';
+import { OnPaymentHoldPlacedHandler } from '../../../application/handlers/on-payment-hold-placed.handler';
+import { OnPaymentIntentFailedHandler } from '../../../application/handlers/on-payment-intent-failed.handler';
 import { recordConsumerEvent } from '../../../observability/outbox-metrics';
 
 @Controller('internal/events')
@@ -24,12 +24,12 @@ export class InternalEventsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly consumedRepo: ConsumedEventRepository,
-    paymentHoldPlacedHandler: HandlePaymentHoldPlacedHandler,
-    paymentCapturedHandler: HandlePaymentCapturedHandler,
+    holdPlacedHandler: OnPaymentHoldPlacedHandler,
+    intentFailedHandler: OnPaymentIntentFailedHandler,
   ) {
     this.handlerMap = new Map<string, EventHandler>([
-      [paymentHoldPlacedHandler.eventType, paymentHoldPlacedHandler],
-      [paymentCapturedHandler.eventType, paymentCapturedHandler],
+      [holdPlacedHandler.eventType, holdPlacedHandler],
+      [intentFailedHandler.eventType, intentFailedHandler],
     ]);
   }
 
@@ -50,22 +50,25 @@ export class InternalEventsController {
       return { status: 'duplicate' };
     }
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const exists = await this.consumedRepo.existsInTx(envelope.eventId, tx);
-      if (exists) return;
+    await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const exists = await this.consumedRepo.existsInTx(envelope.eventId, tx);
+        if (exists) return;
 
-      await handler.handle(envelope, tx);
+        await handler.handle(envelope, tx);
 
-      await this.consumedRepo.create(
-        {
-          eventId: envelope.eventId,
-          eventType: envelope.eventType,
-          producer: envelope.producer,
-          traceId: envelope.traceId,
-        },
-        tx,
-      );
-    });
+        await this.consumedRepo.create(
+          {
+            eventId: envelope.eventId,
+            eventType: envelope.eventType,
+            producer: envelope.producer,
+            traceId: envelope.traceId,
+          },
+          tx,
+        );
+      },
+      { timeout: 15_000 },
+    );
 
     recordConsumerEvent(envelope.eventType, 'processed');
     this.logger.log({

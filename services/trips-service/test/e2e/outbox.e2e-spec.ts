@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken';
 import { createTestApp, TestContext } from './helpers/test-app';
 import { cleanDatabase } from './helpers/db-cleanup';
 import { OutboxWorker } from '../../src/workers/outbox.worker';
-import { signEvent } from '../../src/shared/hmac';
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long!!';
 const HMAC_SECRET = 'test-hmac-secret-at-least-32-characters-long!!';
@@ -71,7 +70,7 @@ describe('Outbox E2E — trips-service', () => {
     expect(payload['tripId']).toBe(tripId);
     expect(payload['passengerId']).toBe(PASSENGER_A);
     expect(payload['seats']).toBe(1);
-    expect(payload['priceKgs']).toBe(2000);
+    expect(payload['amountKgs']).toBe(2000);
   });
 
   // ─── 2) Cancel booking creates booking.cancelled outbox event ───

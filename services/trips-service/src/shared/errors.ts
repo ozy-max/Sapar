@@ -60,6 +60,12 @@ export class BookingExistsError extends AppError {
 
 export class BookingNotActiveError extends AppError {
   constructor() {
-    super('BOOKING_NOT_ACTIVE', 409, 'Booking is not active');
+    super('BOOKING_NOT_ACTIVE', 409, 'Booking is not in a cancellable state');
+  }
+}
+
+export class InvalidBookingTransitionError extends AppError {
+  constructor(from: string, to: string) {
+    super('INVALID_BOOKING_TRANSITION', 409, `Cannot transition booking from ${from} to ${to}`);
   }
 }

@@ -4,6 +4,7 @@ import { TripRepository } from './trip.repository';
 import { BookingRepository } from './booking.repository';
 import { IdempotencyRepository } from './idempotency.repository';
 import { OutboxEventRepository } from './outbox-event.repository';
+import { ConsumedEventRepository } from './consumed-event.repository';
 import { OutboxService } from '../../shared/outbox.service';
 
 @Global()
@@ -14,6 +15,7 @@ import { OutboxService } from '../../shared/outbox.service';
     BookingRepository,
     IdempotencyRepository,
     OutboxEventRepository,
+    ConsumedEventRepository,
     OutboxService,
   ],
   exports: [
@@ -22,6 +24,7 @@ import { OutboxService } from '../../shared/outbox.service';
     BookingRepository,
     IdempotencyRepository,
     OutboxEventRepository,
+    ConsumedEventRepository,
     OutboxService,
   ],
 })

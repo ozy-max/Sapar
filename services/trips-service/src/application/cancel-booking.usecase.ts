@@ -22,6 +22,8 @@ interface CancelBookingOutput {
   status: string;
 }
 
+const CANCELLABLE_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED'];
+
 @Injectable()
 export class CancelBookingUseCase {
   private readonly logger = new Logger(CancelBookingUseCase.name);
@@ -44,14 +46,16 @@ export class CancelBookingUseCase {
       throw new ForbiddenError();
     }
 
-    if (booking.status !== 'ACTIVE') throw new BookingNotActiveError();
+    if (!CANCELLABLE_STATUSES.includes(booking.status)) throw new BookingNotActiveError();
 
     await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT id FROM trips WHERE id = ${booking.tripId}::uuid FOR UPDATE`;
 
         const freshBooking = await tx.booking.findUnique({ where: { id: input.bookingId } });
-        if (!freshBooking || freshBooking.status !== 'ACTIVE') throw new BookingNotActiveError();
+        if (!freshBooking || !CANCELLABLE_STATUSES.includes(freshBooking.status)) {
+          throw new BookingNotActiveError();
+        }
 
         await tx.booking.update({
           where: { id: input.bookingId },
@@ -71,6 +75,7 @@ export class CancelBookingUseCase {
               tripId: booking.tripId,
               passengerId: booking.passengerId,
               seats: freshBooking.seats,
+              reason: 'USER_CANCELLED',
             },
             traceId: input.traceId,
           },

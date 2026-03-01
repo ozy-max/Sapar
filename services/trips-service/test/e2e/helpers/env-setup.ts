@@ -7,3 +7,5 @@ process.env['LOG_LEVEL'] = 'silent';
 process.env['JWT_ACCESS_SECRET'] = 'test-jwt-secret-at-least-32-characters-long!!';
 process.env['EVENTS_HMAC_SECRET'] = 'test-hmac-secret-at-least-32-characters-long!!';
 process.env['OUTBOX_TARGETS'] = '';
+process.env['BOOKING_TTL_SEC'] = '900';
+process.env['EXPIRATION_WORKER_INTERVAL_MS'] = '60000';

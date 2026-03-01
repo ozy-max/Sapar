@@ -132,7 +132,7 @@ describe('Trips Service E2E', () => {
 
       expect(bookRes.body.bookingId).toBeDefined();
       expect(bookRes.body.tripId).toBe(tripId);
-      expect(bookRes.body.status).toBe('ACTIVE');
+      expect(bookRes.body.status).toBe('PENDING_PAYMENT');
 
       const searchRes = await request(ctx.app.getHttpServer())
         .get('/search')
