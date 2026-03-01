@@ -26,6 +26,14 @@ const envSchema = z
     OUTBOX_TARGETS: z.string().default(''),
     BOOKING_TTL_SEC: z.coerce.number().int().positive().default(900),
     EXPIRATION_WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+
+    ADMIN_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
+    COMMAND_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+    COMMAND_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+
+    CONFIG_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
+    CONFIG_CACHE_TTL_MS: z.coerce.number().int().positive().default(30000),
+    CONFIG_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
   })
   .superRefine((_val, ctx) => {
     if (

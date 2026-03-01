@@ -20,6 +20,16 @@ const envSchema = z
 
     PASSWORD_HASH_MEMORY_COST: z.coerce.number().int().positive().optional(),
     PASSWORD_HASH_TIME_COST: z.coerce.number().int().positive().optional(),
+
+    EVENTS_HMAC_SECRET: z.string().min(1).default('hmac-secret-for-dev-at-least-32-chars!!'),
+
+    ADMIN_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
+    COMMAND_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+    COMMAND_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+
+    CONFIG_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
+    CONFIG_CACHE_TTL_MS: z.coerce.number().int().positive().default(30000),
+    CONFIG_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
   })
   .superRefine((_val, ctx) => {
     if (

@@ -12,3 +12,6 @@ process.env['RECEIPT_BACKOFF_SEC_LIST'] = '0,0,0';
 process.env['RECEIPT_POLL_INTERVAL_MS'] = '60000';
 process.env['EVENTS_HMAC_SECRET'] = 'test-hmac-secret-at-least-32-characters-long!!';
 process.env['OUTBOX_TARGETS'] = '';
+process.env['CONFIG_BASE_URL'] = 'http://localhost:3005';
+process.env['CONFIG_CACHE_TTL_MS'] = '30000';
+process.env['CONFIG_FETCH_TIMEOUT_MS'] = '3000';

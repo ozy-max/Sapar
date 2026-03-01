@@ -1,13 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DisputeResolution } from '@prisma/client';
+import { PrismaService } from '../adapters/db/prisma.service';
 import { DisputeRepository } from '../adapters/db/dispute.repository';
 import { AuditLogRepository } from '../adapters/db/audit-log.repository';
+import { OutboxService } from '../shared/outbox.service';
 import { DisputeNotFoundError, SlaWindowExpiredError, InvalidStateError } from '../shared/errors';
 import { loadEnv } from '../config/env';
 
 interface ResolveDisputeInput {
   disputeId: string;
   resolution: string;
+  refundAmountKgs?: number;
   actorUserId: string;
   actorRoles: string[];
   traceId: string;
@@ -23,13 +26,17 @@ interface DisputeOutput {
   resolvedBy: string;
 }
 
+const PAYMENT_RESOLUTIONS: string[] = ['REFUND', 'PARTIAL', 'NO_REFUND'];
+
 @Injectable()
 export class ResolveDisputeUseCase {
   private readonly logger = new Logger(ResolveDisputeUseCase.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly disputeRepo: DisputeRepository,
     private readonly auditLogRepo: AuditLogRepository,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async execute(input: ResolveDisputeInput): Promise<DisputeOutput> {
@@ -48,11 +55,35 @@ export class ResolveDisputeUseCase {
       throw new SlaWindowExpiredError();
     }
 
-    const resolved = await this.disputeRepo.resolve(
-      input.disputeId,
-      input.resolution as DisputeResolution,
-      input.actorUserId,
-    );
+    const resolved = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.dispute.update({
+        where: { id: input.disputeId },
+        data: {
+          status: 'RESOLVED',
+          resolution: input.resolution as DisputeResolution,
+          resolvedAt: new Date(),
+          resolvedBy: input.actorUserId,
+        },
+      });
+
+      if (PAYMENT_RESOLUTIONS.includes(input.resolution)) {
+        await this.outboxService.publish(
+          {
+            eventType: 'dispute.resolved',
+            payload: {
+              disputeId: input.disputeId,
+              bookingId: dispute.bookingId,
+              resolution: input.resolution,
+              refundAmountKgs: input.refundAmountKgs,
+            },
+            traceId: input.traceId,
+          },
+          tx,
+        );
+      }
+
+      return updated;
+    });
 
     await this.auditLogRepo.create({
       actorUserId: input.actorUserId,
@@ -60,7 +91,7 @@ export class ResolveDisputeUseCase {
       action: 'DISPUTE_RESOLVE',
       targetType: 'Dispute',
       targetId: input.disputeId,
-      payloadJson: { resolution: input.resolution },
+      payloadJson: { resolution: input.resolution, refundAmountKgs: input.refundAmountKgs },
       traceId: input.traceId,
     });
 

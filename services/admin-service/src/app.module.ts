@@ -7,6 +7,8 @@ import { DatabaseModule } from './adapters/db/database.module';
 import { ConfigModule } from './adapters/http/config.module';
 import { DisputeModule } from './adapters/http/dispute.module';
 import { ModerationModule } from './adapters/http/moderation.module';
+import { InternalModule } from './adapters/http/internal.module';
+import { WorkersModule } from './workers/workers.module';
 import { HealthController } from './adapters/http/controllers/health.controller';
 import { ObservabilityModule } from './observability/observability.module';
 import { normalizeRoute } from './observability/route-normalizer';
@@ -46,6 +48,8 @@ import { normalizeRoute } from './observability/route-normalizer';
     ConfigModule,
     DisputeModule,
     ModerationModule,
+    InternalModule,
+    WorkersModule,
     ObservabilityModule,
   ],
   controllers: [HealthController],

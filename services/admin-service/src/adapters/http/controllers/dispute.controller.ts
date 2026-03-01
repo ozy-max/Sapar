@@ -99,6 +99,7 @@ export class DisputeController {
     return this.resolveDispute.execute({
       disputeId: id,
       resolution: input.resolution,
+      refundAmountKgs: input.refundAmountKgs,
       actorUserId: userId,
       actorRoles: roles,
       traceId,

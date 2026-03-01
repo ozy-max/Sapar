@@ -22,9 +22,11 @@ export class UnbanUserUseCase {
 
   async execute(input: UnbanUserInput): Promise<{ commandId: string; status: string }> {
     const command = await this.commandRepo.create({
+      targetService: 'identity',
       type: AdminCommandType.UNBAN_USER,
       payload: { userId: input.userId, reason: input.reason },
       createdBy: input.actorUserId,
+      traceId: input.traceId,
     });
 
     await this.auditLogRepo.create({

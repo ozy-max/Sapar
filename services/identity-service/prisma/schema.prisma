@@ -8,12 +8,14 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  roles        String[] @default([])
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  roles        String[]  @default([])
+  bannedUntil  DateTime? @map("banned_until")
+  banReason    String?   @map("ban_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   refreshTokens RefreshToken[]
 
@@ -33,4 +35,14 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model ConsumedEvent {
+  eventId    String   @id @map("event_id")
+  eventType  String   @map("event_type")
+  consumedAt DateTime @default(now()) @map("consumed_at")
+  producer   String
+  traceId    String   @map("trace_id")
+
+  @@map("consumed_events")
 }

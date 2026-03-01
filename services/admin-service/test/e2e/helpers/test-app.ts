@@ -15,7 +15,7 @@ export async function createTestApp(): Promise<TestContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication({ rawBody: true });
   app.use(requestIdMiddleware);
   app.useGlobalFilters(new AllExceptionsFilter());
   await app.init();

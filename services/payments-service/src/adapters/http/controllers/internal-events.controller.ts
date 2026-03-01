@@ -15,6 +15,7 @@ import { HmacGuard } from '../guards/hmac.guard';
 import { HandleBookingCreatedHandler } from '../../../application/handlers/handle-booking-created.handler';
 import { OnBookingConfirmedHandler } from '../../../application/handlers/on-booking-confirmed.handler';
 import { OnBookingCancelledHandler } from '../../../application/handlers/on-booking-cancelled.handler';
+import { OnDisputeResolvedHandler } from '../../../application/handlers/on-dispute-resolved.handler';
 import { recordConsumerEvent } from '../../../observability/outbox-metrics';
 
 @Controller('internal/events')
@@ -28,12 +29,14 @@ export class InternalEventsController {
     bookingCreatedHandler: HandleBookingCreatedHandler,
     bookingConfirmedHandler: OnBookingConfirmedHandler,
     bookingCancelledHandler: OnBookingCancelledHandler,
+    disputeResolvedHandler: OnDisputeResolvedHandler,
   ) {
     this.handlerMap = new Map<string, EventHandler>([
       [bookingCreatedHandler.eventType, bookingCreatedHandler],
       [bookingConfirmedHandler.eventType, bookingConfirmedHandler],
       [bookingCancelledHandler.eventType, bookingCancelledHandler],
       ['booking.expired', bookingCancelledHandler],
+      [disputeResolvedHandler.eventType, disputeResolvedHandler],
     ]);
   }
 

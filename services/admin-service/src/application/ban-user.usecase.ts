@@ -23,9 +23,11 @@ export class BanUserUseCase {
 
   async execute(input: BanUserInput): Promise<{ commandId: string; status: string }> {
     const command = await this.commandRepo.create({
+      targetService: 'identity',
       type: AdminCommandType.BAN_USER,
       payload: { userId: input.userId, reason: input.reason, until: input.until },
       createdBy: input.actorUserId,
+      traceId: input.traceId,
     });
 
     await this.auditLogRepo.create({

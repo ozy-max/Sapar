@@ -22,9 +22,11 @@ export class CancelTripUseCase {
 
   async execute(input: CancelTripInput): Promise<{ commandId: string; status: string }> {
     const command = await this.commandRepo.create({
+      targetService: 'trips',
       type: AdminCommandType.CANCEL_TRIP,
       payload: { tripId: input.tripId, reason: input.reason },
       createdBy: input.actorUserId,
+      traceId: input.traceId,
     });
 
     await this.auditLogRepo.create({

@@ -41,8 +41,16 @@ enum AdminCommandType {
 
 enum AdminCommandStatus {
   PENDING
-  PROCESSED
-  FAILED
+  APPLIED
+  FAILED_RETRY
+  FAILED_FINAL
+}
+
+enum OutboxEventStatus {
+  PENDING
+  SENT
+  FAILED_RETRY
+  FAILED_FINAL
 }
 
 model Config {
@@ -51,6 +59,7 @@ model Config {
   valueJson   Json       @map("value_json")
   description String?
   scope       String?
+  version     Int        @default(1)
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
@@ -91,13 +100,36 @@ model AuditLog {
 }
 
 model AdminCommand {
-  id        String             @id @default(uuid()) @db.Uuid
-  type      AdminCommandType
-  payload   Json
-  status    AdminCommandStatus @default(PENDING)
-  createdBy String             @map("created_by") @db.Uuid
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
+  id            String             @id @default(uuid()) @db.Uuid
+  targetService String             @map("target_service")
+  type          AdminCommandType
+  payload       Json
+  status        AdminCommandStatus @default(PENDING)
+  tryCount      Int                @default(0) @map("try_count")
+  nextRetryAt   DateTime           @default(now()) @map("next_retry_at")
+  lastError     String?            @map("last_error")
+  traceId       String             @map("trace_id")
+  createdBy     String             @map("created_by") @db.Uuid
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
 
+  @@index([targetService, status, nextRetryAt])
   @@map("admin_commands")
+}
+
+model OutboxEvent {
+  id          String           @id @default(uuid()) @db.Uuid
+  eventType   String           @map("event_type")
+  payloadJson Json             @map("payload_json")
+  occurredAt  DateTime         @map("occurred_at")
+  traceId     String           @map("trace_id")
+  status      OutboxEventStatus @default(PENDING)
+  tryCount    Int              @default(0) @map("try_count")
+  nextRetryAt DateTime         @default(now()) @map("next_retry_at")
+  lastError   String?          @map("last_error")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([status, nextRetryAt])
+  @@map("outbox_events")
 }

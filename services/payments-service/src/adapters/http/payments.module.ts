@@ -11,6 +11,7 @@ import { HandleWebhookUseCase } from '../../application/handle-webhook.usecase';
 import { HandleBookingCreatedHandler } from '../../application/handlers/handle-booking-created.handler';
 import { OnBookingConfirmedHandler } from '../../application/handlers/on-booking-confirmed.handler';
 import { OnBookingCancelledHandler } from '../../application/handlers/on-booking-cancelled.handler';
+import { OnDisputeResolvedHandler } from '../../application/handlers/on-dispute-resolved.handler';
 import { HmacGuard } from './guards/hmac.guard';
 
 @Module({
@@ -24,6 +25,7 @@ import { HmacGuard } from './guards/hmac.guard';
     HandleBookingCreatedHandler,
     OnBookingConfirmedHandler,
     OnBookingCancelledHandler,
+    OnDisputeResolvedHandler,
     HmacGuard,
   ],
 })

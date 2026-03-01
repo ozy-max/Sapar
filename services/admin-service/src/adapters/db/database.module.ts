@@ -4,6 +4,7 @@ import { ConfigRepository } from './config.repository';
 import { DisputeRepository } from './dispute.repository';
 import { AuditLogRepository } from './audit-log.repository';
 import { AdminCommandRepository } from './admin-command.repository';
+import { OutboxEventRepository } from './outbox-event.repository';
 
 @Global()
 @Module({
@@ -13,6 +14,7 @@ import { AdminCommandRepository } from './admin-command.repository';
     DisputeRepository,
     AuditLogRepository,
     AdminCommandRepository,
+    OutboxEventRepository,
   ],
   exports: [
     PrismaService,
@@ -20,6 +22,7 @@ import { AdminCommandRepository } from './admin-command.repository';
     DisputeRepository,
     AuditLogRepository,
     AdminCommandRepository,
+    OutboxEventRepository,
   ],
 })
 export class DatabaseModule {}
