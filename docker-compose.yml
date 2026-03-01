@@ -42,6 +42,7 @@ services:
       TRIPS_BASE_URL: http://trips-service:3002
       PAYMENTS_BASE_URL: http://payments-service:3003
       NOTIFICATIONS_BASE_URL: http://notifications-service:3004
+      ADMIN_BASE_URL: http://admin-service:3005
       HTTP_TIMEOUT_MS: 3000
       MAX_BODY_BYTES: 1048576
       REDIS_URL: redis://redis:6379/0
@@ -192,6 +193,39 @@ services:
       notifications-postgres:
         condition: service_healthy
 
+  admin-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_DB: sapar_admin
+    ports:
+      - '5441:5432'
+    volumes:
+      - admin-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_admin']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin-service:
+    build:
+      context: ./services/admin-service
+      dockerfile: Dockerfile
+    ports:
+      - '3005:3005'
+    environment:
+      PORT: 3005
+      DATABASE_URL: postgresql://sapar:sapar_secret@admin-postgres:5432/sapar_admin
+      NODE_ENV: development
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
+      SLA_RESOLVE_HOURS: 12
+    depends_on:
+      admin-postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:
@@ -199,3 +233,4 @@ volumes:
   trips-pgdata:
   payments-pgdata:
   notifications-pgdata:
+  admin-pgdata:

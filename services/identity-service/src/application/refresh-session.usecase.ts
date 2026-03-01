@@ -55,6 +55,7 @@ export class RefreshSessionUseCase {
     const { token: accessToken, expiresInSec } = this.jwt.signAccessToken({
       sub: user.id,
       email: user.email,
+      roles: user.roles,
     });
 
     this.logger.log(`Session refreshed: userId=${user.id}`);

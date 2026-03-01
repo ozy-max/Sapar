@@ -53,6 +53,18 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
+  @All('admin/*')
+  @ApiOperation({ summary: 'Proxy to Admin service (e.g. GET /admin/configs)' })
+  @ApiResponse({ status: 200, description: 'Proxied response from Admin' })
+  @ApiResponse({ status: 502, description: 'Downstream unavailable' })
+  @ApiResponse({ status: 504, description: 'Downstream timeout' })
+  async proxyAdmin(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.dispatchProxy(req, res);
+  }
+
   private async dispatchProxy(req: Request, res: Response): Promise<void> {
     const resolved = resolveRoute(req.path, this.routeTable);
     if (!resolved) {

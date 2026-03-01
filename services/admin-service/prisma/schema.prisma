@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ConfigType {
+  INT
+  FLOAT
+  BOOL
+  STRING
+  JSON
+}
+
+enum DisputeType {
+  NO_SHOW
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  CLOSED
+}
+
+enum DisputeResolution {
+  REFUND
+  NO_REFUND
+  PARTIAL
+  BAN_USER
+}
+
+enum AdminCommandType {
+  BAN_USER
+  UNBAN_USER
+  CANCEL_TRIP
+}
+
+enum AdminCommandStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model Config {
+  key         String     @id
+  type        ConfigType
+  valueJson   Json       @map("value_json")
+  description String?
+  scope       String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("configs")
+}
+
+model Dispute {
+  id           String             @id @default(uuid()) @db.Uuid
+  type         DisputeType
+  bookingId    String             @map("booking_id")
+  departAt     DateTime           @map("depart_at")
+  evidenceUrls String[]           @map("evidence_urls")
+  status       DisputeStatus      @default(OPEN)
+  resolution   DisputeResolution?
+  resolvedAt   DateTime?          @map("resolved_at")
+  resolvedBy   String?            @map("resolved_by") @db.Uuid
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@map("disputes")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  actorRoles  String[] @map("actor_roles")
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  payloadJson Json?    @map("payload_json")
+  traceId     String   @map("trace_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([actorUserId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AdminCommand {
+  id        String             @id @default(uuid()) @db.Uuid
+  type      AdminCommandType
+  payload   Json
+  status    AdminCommandStatus @default(PENDING)
+  createdBy String             @map("created_by") @db.Uuid
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@map("admin_commands")
+}

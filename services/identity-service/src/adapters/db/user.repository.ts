@@ -17,4 +17,8 @@ export class UserRepository {
   async create(data: { email: string; passwordHash: string }): Promise<User> {
     return this.prisma.user.create({ data });
   }
+
+  async updateRoles(id: string, roles: string[]): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { roles } });
+  }
 }

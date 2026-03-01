@@ -5,6 +5,7 @@ import { loadEnv } from '../config/env';
 export interface AccessTokenPayload {
   sub: string;
   email: string;
+  roles: string[];
 }
 
 export interface SignedToken {

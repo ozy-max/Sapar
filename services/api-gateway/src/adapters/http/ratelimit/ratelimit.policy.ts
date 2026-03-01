@@ -29,6 +29,12 @@ export function buildRateLimitPolicies(env: Env): ReadonlyArray<RateLimitPolicy>
       windowSec: env.RATE_LIMIT_WINDOW_SEC,
       failStrategy: 'closed',
     },
+    {
+      prefix: 'admin',
+      rpm: env.RATE_ADMIN_RPM,
+      windowSec: env.RATE_LIMIT_WINDOW_SEC,
+      failStrategy: 'closed',
+    },
   ];
 }
 

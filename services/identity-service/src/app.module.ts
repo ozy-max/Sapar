@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { SharedModule } from './shared/shared.module';
 import { DatabaseModule } from './adapters/db/database.module';
 import { AuthModule } from './adapters/http/auth.module';
+import { AdminModule } from './adapters/http/admin.module';
 import { HealthController } from './adapters/http/controllers/health.controller';
 import { ObservabilityModule } from './observability/observability.module';
 import { normalizeRoute } from './observability/route-normalizer';
@@ -42,6 +43,7 @@ import { normalizeRoute } from './observability/route-normalizer';
     SharedModule,
     DatabaseModule,
     AuthModule,
+    AdminModule,
     ObservabilityModule,
   ],
   controllers: [HealthController],

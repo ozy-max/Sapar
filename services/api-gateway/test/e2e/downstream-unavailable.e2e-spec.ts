@@ -10,6 +10,7 @@ beforeAll(() => {
   process.env['IDENTITY_BASE_URL'] = 'http://127.0.0.1:19041';
   process.env['TRIPS_BASE_URL'] = 'http://127.0.0.1:19042';
   process.env['PAYMENTS_BASE_URL'] = 'http://127.0.0.1:19043';
+  process.env['ADMIN_BASE_URL'] = 'http://127.0.0.1:19005';
   process.env['HTTP_TIMEOUT_MS'] = '2000';
   process.env['MAX_BODY_BYTES'] = '1048576';
   resetEnvCache();

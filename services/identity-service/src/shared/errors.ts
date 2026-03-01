@@ -33,3 +33,9 @@ export class ValidationError extends AppError {
     super('VALIDATION_ERROR', 400, 'Validation failed', details);
   }
 }
+
+export class UnauthorizedError extends AppError {
+  constructor() {
+    super('UNAUTHORIZED', 401, 'Authentication required');
+  }
+}
