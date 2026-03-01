@@ -133,6 +133,18 @@ services:
       timeout: 3s
       retries: 5
 
+  trips-redis:
+    image: redis:7-alpine
+    ports:
+      - '6380:6379'
+    volumes:
+      - trips-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   trips-service:
     build:
       context: ./services/trips-service
@@ -149,8 +161,13 @@ services:
       OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events,trip.completed>http://profiles-service:3006/internal/events
       BOOKING_TTL_SEC: 900
       EXPIRATION_WORKER_INTERVAL_MS: 1000
+      REDIS_URL: redis://trips-redis:6379/0
+      REDIS_TIMEOUT_MS: 500
+      SEARCH_CACHE_TTL_SEC: 15
     depends_on:
       trips-postgres:
+        condition: service_healthy
+      trips-redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3002/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
@@ -334,6 +351,7 @@ volumes:
   redisdata:
   identity-pgdata:
   trips-pgdata:
+  trips-redisdata:
   payments-pgdata:
   notifications-pgdata:
   admin-pgdata:

@@ -18,6 +18,8 @@ export async function handleTripsSearch(
       tripId: t.tripId,
       fromCity: t.fromCity,
       toCity: t.toCity,
+      fromCityId: t.fromCityId,
+      toCityId: t.toCityId,
       departAt: t.departAt,
       priceKgs: t.priceKgs,
       seatsAvailable: t.seatsAvailable,

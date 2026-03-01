@@ -77,14 +77,15 @@ export class TripsController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search active trips (passenger)' })
+  @ApiOperation({ summary: 'Search active trips (geo-aware, passenger)' })
   @ApiQuery({ type: SearchTripsQueryDto })
   @ApiResponse({ status: 200, type: SearchTripsResponseDto })
   @ApiResponse({ status: 400, type: ErrorResponseDto })
   async search(
     @Query(new ZodValidationPipe(searchTripsSchema)) query: SearchTripsInput,
+    @Headers('x-request-id') traceId?: string,
   ): Promise<SearchTripsResponseDto> {
-    return this.searchTrips.execute(query);
+    return this.searchTrips.execute(query, traceId);
   }
 
   @Post(':tripId/book')

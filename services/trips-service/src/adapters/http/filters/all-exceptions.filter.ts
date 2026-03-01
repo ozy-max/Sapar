@@ -44,10 +44,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
       if (typeof body === 'string') {
         message = body;
-        code = HttpStatus[status] ?? 'INTERNAL_ERROR';
+        code = status === HttpStatus.BAD_REQUEST ? 'VALIDATION_ERROR' : (HttpStatus[status] ?? 'INTERNAL_ERROR');
       } else if (typeof body === 'object' && body !== null) {
         const obj = body as Record<string, unknown>;
-        code = (obj['code'] as string) ?? HttpStatus[status] ?? 'INTERNAL_ERROR';
+        const fallbackCode = status === HttpStatus.BAD_REQUEST ? 'VALIDATION_ERROR' : (HttpStatus[status] ?? 'INTERNAL_ERROR');
+        code = (obj['code'] as string) ?? fallbackCode;
         message = (obj['message'] as string) ?? 'An unexpected error occurred';
         details = obj['details'] as Record<string, unknown> | undefined;
       } else {

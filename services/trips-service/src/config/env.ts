@@ -34,6 +34,11 @@ const envSchema = z
     CONFIG_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
     CONFIG_CACHE_TTL_MS: z.coerce.number().int().positive().default(30000),
     CONFIG_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+
+    REDIS_URL: z.string().optional(),
+    REDIS_TIMEOUT_MS: z.coerce.number().int().positive().default(500),
+    SEARCH_CACHE_TTL_SEC: z.coerce.number().int().nonnegative().default(15),
+    SEARCH_DEFAULT_RADIUS_KM: z.coerce.number().positive().default(25),
   })
   .superRefine((_val, ctx) => {
     if (

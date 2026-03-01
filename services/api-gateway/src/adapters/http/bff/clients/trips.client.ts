@@ -2,11 +2,24 @@ import { bffFetch, BffResponse } from './bff-http.client';
 import { loadEnv } from '../../../../config/env';
 
 export interface TripsSearchParams {
-  fromCity: string;
-  toCity: string;
+  fromCity?: string;
+  toCity?: string;
+  fromCityId?: string;
+  toCityId?: string;
+  fromLat?: number;
+  fromLon?: number;
+  toLat?: number;
+  toLon?: number;
+  radiusKm?: number;
+  bboxMinLat?: number;
+  bboxMinLon?: number;
+  bboxMaxLat?: number;
+  bboxMaxLon?: number;
   dateFrom?: string;
   dateTo?: string;
   minSeats?: number;
+  priceMin?: number;
+  priceMax?: number;
   limit?: number;
   offset?: number;
 }
@@ -16,6 +29,8 @@ export interface TripSearchItem {
   driverId: string;
   fromCity: string;
   toCity: string;
+  fromCityId?: string | null;
+  toCityId?: string | null;
   departAt: string;
   seatsTotal: number;
   seatsAvailable: number;
@@ -90,18 +105,35 @@ function timeoutMs(): number {
   return loadEnv().BFF_TIMEOUT_MS;
 }
 
+function appendOptional(qs: URLSearchParams, key: string, value: string | number | undefined | null): void {
+  if (value !== undefined && value !== null) qs.set(key, String(value));
+}
+
 export async function searchTrips(
   params: TripsSearchParams,
   headers: Record<string, string>,
 ): Promise<BffResponse<TripsSearchResponse>> {
   const qs = new URLSearchParams();
-  qs.set('fromCity', params.fromCity);
-  qs.set('toCity', params.toCity);
-  if (params.dateFrom) qs.set('dateFrom', params.dateFrom);
-  if (params.dateTo) qs.set('dateTo', params.dateTo);
-  if (params.minSeats !== undefined) qs.set('minSeats', String(params.minSeats));
-  if (params.limit !== undefined) qs.set('limit', String(params.limit));
-  if (params.offset !== undefined) qs.set('offset', String(params.offset));
+  appendOptional(qs, 'fromCity', params.fromCity);
+  appendOptional(qs, 'toCity', params.toCity);
+  appendOptional(qs, 'fromCityId', params.fromCityId);
+  appendOptional(qs, 'toCityId', params.toCityId);
+  appendOptional(qs, 'fromLat', params.fromLat);
+  appendOptional(qs, 'fromLon', params.fromLon);
+  appendOptional(qs, 'toLat', params.toLat);
+  appendOptional(qs, 'toLon', params.toLon);
+  appendOptional(qs, 'radiusKm', params.radiusKm);
+  appendOptional(qs, 'bboxMinLat', params.bboxMinLat);
+  appendOptional(qs, 'bboxMinLon', params.bboxMinLon);
+  appendOptional(qs, 'bboxMaxLat', params.bboxMaxLat);
+  appendOptional(qs, 'bboxMaxLon', params.bboxMaxLon);
+  appendOptional(qs, 'dateFrom', params.dateFrom);
+  appendOptional(qs, 'dateTo', params.dateTo);
+  appendOptional(qs, 'minSeats', params.minSeats);
+  appendOptional(qs, 'priceMin', params.priceMin);
+  appendOptional(qs, 'priceMax', params.priceMax);
+  appendOptional(qs, 'limit', params.limit);
+  appendOptional(qs, 'offset', params.offset);
 
   return bffFetch<TripsSearchResponse>('trips', {
     baseUrl: tripsBaseUrl(),

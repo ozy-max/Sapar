@@ -46,6 +46,10 @@ export class CancelBookingUseCase {
       throw new ForbiddenError();
     }
 
+    if (booking.status === 'CANCELLED') {
+      return { bookingId: input.bookingId, status: 'CANCELLED' };
+    }
+
     if (!CANCELLABLE_STATUSES.includes(booking.status)) throw new BookingNotActiveError();
 
     await this.prisma.$transaction(

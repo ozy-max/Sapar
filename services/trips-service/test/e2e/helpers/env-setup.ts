@@ -14,3 +14,7 @@ process.env['COMMAND_POLL_TIMEOUT_MS'] = '3000';
 process.env['CONFIG_BASE_URL'] = 'http://localhost:3005';
 process.env['CONFIG_CACHE_TTL_MS'] = '30000';
 process.env['CONFIG_FETCH_TIMEOUT_MS'] = '3000';
+process.env['REDIS_URL'] = process.env['REDIS_URL'] ?? 'redis://localhost:6381/0';
+process.env['REDIS_TIMEOUT_MS'] = '500';
+process.env['SEARCH_CACHE_TTL_SEC'] = '0';
+process.env['SEARCH_DEFAULT_RADIUS_KM'] = '25';

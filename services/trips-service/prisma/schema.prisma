@@ -21,11 +21,33 @@ enum BookingStatus {
   EXPIRED
 }
 
+model City {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  countryCode String   @map("country_code")
+  lat         Float
+  lon         Float
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tripsFrom Trip[] @relation("TripFromCity")
+  tripsTo   Trip[] @relation("TripToCity")
+
+  @@unique([countryCode, name])
+  @@index([name])
+  @@map("cities")
+}
+
 model Trip {
   id             String     @id @default(uuid()) @db.Uuid
   driverId       String     @map("driver_id") @db.Uuid
   fromCity       String     @map("from_city")
   toCity         String     @map("to_city")
+  fromCityId     String?    @map("from_city_id") @db.Uuid
+  toCityId       String?    @map("to_city_id") @db.Uuid
+  fromLat        Float?     @map("from_lat")
+  fromLon        Float?     @map("from_lon")
+  toLat          Float?     @map("to_lat")
+  toLon          Float?     @map("to_lon")
   departAt       DateTime   @map("depart_at")
   seatsTotal     Int        @map("seats_total")
   seatsAvailable Int        @map("seats_available")
@@ -35,10 +57,13 @@ model Trip {
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
-  bookings Booking[]
+  bookings   Booking[]
+  fromCityRel City? @relation("TripFromCity", fields: [fromCityId], references: [id], onDelete: SetNull)
+  toCityRel   City? @relation("TripToCity", fields: [toCityId], references: [id], onDelete: SetNull)
 
   @@index([fromCity, toCity, departAt])
   @@index([driverId, departAt])
+  @@index([fromCityId, toCityId, departAt])
   @@map("trips")
 }
 

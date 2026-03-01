@@ -26,6 +26,8 @@ export class TripCardDto {
   @ApiProperty() tripId!: string;
   @ApiProperty() fromCity!: string;
   @ApiProperty() toCity!: string;
+  @ApiPropertyOptional() fromCityId?: string | null;
+  @ApiPropertyOptional() toCityId?: string | null;
   @ApiProperty() departAt!: string;
   @ApiProperty() priceKgs!: number;
   @ApiProperty() seatsAvailable!: number;

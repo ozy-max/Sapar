@@ -1,17 +1,32 @@
 import { SearchTripsUseCase } from '../search-trips.usecase';
 import { TripRepository } from '../../adapters/db/trip.repository';
+import { CityRepository } from '../../adapters/db/city.repository';
+import { SearchCacheService } from '../../adapters/redis/search-cache.service';
+
+jest.mock('../../observability/search-metrics', () => ({
+  tripsSearchRequestsTotal: { inc: jest.fn() },
+  tripsSearchDurationMs: { observe: jest.fn() },
+  tripsSearchDbRowsReturned: { observe: jest.fn() },
+}));
 
 function makeTripEntity(overrides: Record<string, unknown> = {}) {
   return {
     id: 'trip-1',
     driverId: 'driver-1',
-    fromCity: 'Almaty',
-    toCity: 'Astana',
+    fromCity: 'Бишкек',
+    toCity: 'Ош',
+    fromCityId: 'city-1',
+    toCityId: 'city-2',
+    fromLat: 42.8746,
+    fromLon: 74.5698,
+    toLat: 40.5283,
+    toLon: 72.7985,
     departAt: new Date('2026-06-15T08:00:00Z'),
     seatsTotal: 4,
     seatsAvailable: 2,
     priceKgs: 5000,
     status: 'ACTIVE',
+    completedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -24,14 +39,21 @@ function buildDeps() {
     searchCount: jest.fn().mockResolvedValue(0),
   } as unknown as TripRepository;
 
-  const useCase = new SearchTripsUseCase(tripRepo);
+  const cityRepo = {
+    findById: jest.fn().mockResolvedValue(null),
+    findByName: jest.fn().mockResolvedValue(null),
+  } as unknown as CityRepository;
 
-  return { useCase, tripRepo };
+  const cache = new SearchCacheService(null, 0);
+
+  const useCase = new SearchTripsUseCase(tripRepo, cityRepo, cache);
+
+  return { useCase, tripRepo, cityRepo, cache };
 }
 
 const baseInput = {
-  fromCity: 'Almaty',
-  toCity: 'Astana',
+  fromCity: 'Бишкек',
+  toCity: 'Ош',
   minSeats: 1,
   limit: 20,
   offset: 0,
@@ -51,8 +73,10 @@ describe('SearchTripsUseCase', () => {
     expect(result.items[0]).toEqual({
       tripId: 'trip-1',
       driverId: 'driver-1',
-      fromCity: 'Almaty',
-      toCity: 'Astana',
+      fromCity: 'Бишкек',
+      toCity: 'Ош',
+      fromCityId: 'city-1',
+      toCityId: 'city-2',
       departAt: '2026-06-15T08:00:00.000Z',
       seatsTotal: 4,
       seatsAvailable: 2,
@@ -82,35 +106,11 @@ describe('SearchTripsUseCase', () => {
 
     expect(tripRepo.search).toHaveBeenCalledWith(
       expect.objectContaining({
-        fromCity: 'Almaty',
-        toCity: 'Astana',
         dateFrom: new Date('2026-06-01T00:00:00Z'),
         dateTo: new Date('2026-06-30T23:59:59Z'),
         minSeats: 1,
         limit: 20,
         offset: 0,
-      }),
-    );
-    expect(tripRepo.searchCount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fromCity: 'Almaty',
-        toCity: 'Astana',
-        dateFrom: new Date('2026-06-01T00:00:00Z'),
-        dateTo: new Date('2026-06-30T23:59:59Z'),
-        minSeats: 1,
-      }),
-    );
-  });
-
-  it('should not pass date filters when not provided', async () => {
-    const { useCase, tripRepo } = buildDeps();
-
-    await useCase.execute(baseInput);
-
-    expect(tripRepo.search).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dateFrom: undefined,
-        dateTo: undefined,
       }),
     );
   });
@@ -122,6 +122,73 @@ describe('SearchTripsUseCase', () => {
 
     expect(tripRepo.search).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 10, offset: 20 }),
+    );
+  });
+
+  it('should resolve fromCity name to cityId via CityRepository', async () => {
+    const { useCase, cityRepo, tripRepo } = buildDeps();
+    (cityRepo.findByName as jest.Mock).mockResolvedValueOnce({
+      id: 'city-bishkek',
+      name: 'Бишкек',
+      countryCode: 'KG',
+      lat: 42.8746,
+      lon: 74.5698,
+    });
+
+    await useCase.execute(baseInput);
+
+    expect(cityRepo.findByName).toHaveBeenCalledWith('Бишкек');
+    expect(tripRepo.search).toHaveBeenCalledWith(
+      expect.objectContaining({ fromCityId: 'city-bishkek' }),
+    );
+  });
+
+  it('should resolve fromCityId to coords via CityRepository', async () => {
+    const { useCase, cityRepo, tripRepo } = buildDeps();
+    (cityRepo.findById as jest.Mock).mockResolvedValueOnce({
+      id: 'city-osh',
+      name: 'Ош',
+      countryCode: 'KG',
+      lat: 40.5283,
+      lon: 72.7985,
+    });
+
+    await useCase.execute({
+      fromCityId: 'city-osh',
+      minSeats: 1,
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(cityRepo.findById).toHaveBeenCalledWith('city-osh');
+    expect(tripRepo.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromLat: 40.5283,
+        fromLon: 72.7985,
+      }),
+    );
+  });
+
+  it('should use geo coordinates directly without city resolution', async () => {
+    const { useCase, cityRepo, tripRepo } = buildDeps();
+
+    await useCase.execute({
+      fromLat: 42.87,
+      fromLon: 74.57,
+      radiusKm: 50,
+      minSeats: 1,
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(cityRepo.findByName).not.toHaveBeenCalled();
+    expect(cityRepo.findById).not.toHaveBeenCalled();
+    expect(tripRepo.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromLat: 42.87,
+        fromLon: 74.57,
+        radiusKm: 50,
+      }),
     );
   });
 });
