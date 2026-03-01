@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const createNotificationSchema = z.object({
-  userId: z.string().uuid('userId must be a valid UUID'),
   channel: z.enum(['SMS', 'EMAIL', 'PUSH']),
   templateKey: z.string().min(1, 'templateKey is required'),
   payload: z.record(z.unknown()).default({}),
@@ -11,9 +10,6 @@ export const createNotificationSchema = z.object({
 export type CreateNotificationInput = z.infer<typeof createNotificationSchema>;
 
 export class CreateNotificationBodyDto {
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
-  userId!: string;
-
   @ApiProperty({ enum: ['SMS', 'EMAIL', 'PUSH'], example: 'EMAIL' })
   channel!: string;
 

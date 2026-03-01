@@ -144,6 +144,8 @@ describe('Trips Service E2E', () => {
   });
 
   // ─── 4) race test: two concurrent bookings for last seat ───────────
+  //   Covers Prisma P2002 (unique constraint) graceful handling:
+  //   both requests must return valid HTTP codes (201/409), never 500.
 
   describe('concurrent booking race', () => {
     it('should allow exactly one booking when only 1 seat left', async () => {
@@ -168,6 +170,8 @@ describe('Trips Service E2E', () => {
 
       const statuses = [resA.status, resB.status].sort();
       expect(statuses).toEqual([201, 409]);
+      expect(resA.status).not.toBe(500);
+      expect(resB.status).not.toBe(500);
 
       const success = resA.status === 201 ? resA : resB;
       const failure = resA.status === 409 ? resA : resB;
@@ -209,6 +213,47 @@ describe('Trips Service E2E', () => {
 
       expect(searchRes.body.items[0].seatsAvailable).toBe(3);
     });
+
+    it('should be idempotent — repeated cancel returns same result', async () => {
+      const created = await request(ctx.app.getHttpServer())
+        .post('/')
+        .set('Authorization', auth(DRIVER_ID))
+        .send(tripBody)
+        .expect(201);
+
+      const tripId = created.body.tripId;
+
+      const bookRes = await request(ctx.app.getHttpServer())
+        .post(`/${tripId}/book`)
+        .set('Authorization', auth(PASSENGER_A))
+        .send({ seats: 1 })
+        .expect(201);
+
+      const bookingId = bookRes.body.bookingId;
+
+      const firstCancel = await request(ctx.app.getHttpServer())
+        .post(`/bookings/${bookingId}/cancel`)
+        .set('Authorization', auth(PASSENGER_A))
+        .expect(200);
+
+      expect(firstCancel.body.status).toBe('CANCELLED');
+
+      const secondCancel = await request(ctx.app.getHttpServer())
+        .post(`/bookings/${bookingId}/cancel`)
+        .set('Authorization', auth(PASSENGER_A));
+
+      expect([200, 204]).toContain(secondCancel.status);
+      if (secondCancel.status === 200) {
+        expect(secondCancel.body.status).toBe('CANCELLED');
+      }
+
+      const searchRes = await request(ctx.app.getHttpServer())
+        .get('/search')
+        .query({ fromCity: 'Алматы', toCity: 'Астана' })
+        .expect(200);
+
+      expect(searchRes.body.items[0].seatsAvailable).toBe(3);
+    });
   });
 
   // ─── 6) cancel trip forbids further booking ────────────────────────
@@ -238,7 +283,40 @@ describe('Trips Service E2E', () => {
     });
   });
 
-  // ─── 7) traceId equals x-request-id on error responses ────────────
+  // ─── 6b) 403 when cancelling someone else's trip ──────────────────
+
+  describe('cancel trip authorization', () => {
+    it('should return 403 when non-driver tries to cancel trip', async () => {
+      const created = await request(ctx.app.getHttpServer())
+        .post('/')
+        .set('Authorization', auth(DRIVER_ID))
+        .send(tripBody)
+        .expect(201);
+
+      const tripId = created.body.tripId;
+
+      await request(ctx.app.getHttpServer())
+        .post(`/${tripId}/cancel`)
+        .set('Authorization', auth(PASSENGER_A))
+        .expect(403);
+    });
+  });
+
+  // ─── 7) ParseUUIDPipe — invalid UUID in path param ───────────────
+
+  describe('UUID validation in path params', () => {
+    it('should return 400 for non-UUID tripId on book', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/not-a-uuid/book')
+        .set('Authorization', auth(PASSENGER_A))
+        .send({ seats: 1 })
+        .expect(400);
+
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  // ─── 8) traceId equals x-request-id on error responses ───────────
 
   describe('traceId handling', () => {
     it('should set traceId from x-request-id on error', async () => {
@@ -257,7 +335,7 @@ describe('Trips Service E2E', () => {
     });
   });
 
-  // ─── 8) idempotency ───────────────────────────────────────────────
+  // ─── 9) idempotency ───────────────────────────────────────────────
 
   describe('idempotency key', () => {
     it('should return the same booking on retry with same Idempotency-Key', async () => {

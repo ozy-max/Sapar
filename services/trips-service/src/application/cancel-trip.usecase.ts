@@ -30,6 +30,11 @@ export class CancelTripUseCase {
     private readonly outboxService: OutboxService,
   ) {}
 
+  /**
+   * Driver-initiated cancellation — requires ownership check and ACTIVE/DRAFT status.
+   * Intentionally separate from AdminCommandWorker.cancelTrip which has
+   * different auth rules, status checks, and event payloads.
+   */
   async execute(input: CancelTripInput): Promise<CancelTripOutput> {
     await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<TripRow[]>`
@@ -50,6 +55,14 @@ export class CancelTripUseCase {
         data: { status: TripStatus.CANCELLED },
       });
 
+      const bookingsToCancel = await tx.booking.findMany({
+        where: {
+          tripId: input.tripId,
+          status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+        },
+        select: { id: true, passengerId: true, seats: true, status: true },
+      });
+
       await tx.booking.updateMany({
         where: {
           tripId: input.tripId,
@@ -57,6 +70,23 @@ export class CancelTripUseCase {
         },
         data: { status: 'CANCELLED' },
       });
+
+      for (const booking of bookingsToCancel) {
+        await this.outboxService.publish(
+          {
+            eventType: 'booking.cancelled',
+            payload: {
+              bookingId: booking.id,
+              tripId: input.tripId,
+              passengerId: booking.passengerId,
+              seats: booking.seats,
+              reason: 'TRIP_CANCELLED',
+            },
+            traceId: input.traceId,
+          },
+          tx,
+        );
+      }
 
       await this.outboxService.publish(
         {
@@ -69,7 +99,7 @@ export class CancelTripUseCase {
         },
         tx,
       );
-    });
+    }, { timeout: 10_000 });
 
     this.logger.log(`Trip cancelled: tripId=${input.tripId} by driverId=${input.userId}`);
 

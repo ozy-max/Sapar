@@ -67,6 +67,19 @@ export class InstrumentedPspAdapter implements PspAdapter {
       throw error;
     }
   }
+
+  async getStatus(pspIntentId: string): Promise<{ status: string }> {
+    const start = performance.now();
+    try {
+      const result = await this.inner.getStatus(pspIntentId);
+      observe('psp', 'getStatus', start);
+      return result;
+    } catch (error) {
+      observe('psp', 'getStatus', start);
+      observeError('psp', 'getStatus');
+      throw error;
+    }
+  }
 }
 
 @Injectable()

@@ -64,6 +64,23 @@ export class TripRepository {
     });
   }
 
+  async searchCount(params: Omit<SearchTripsParams, 'limit' | 'offset'>): Promise<number> {
+    const where: Prisma.TripWhereInput = {
+      fromCity: { equals: params.fromCity, mode: 'insensitive' },
+      toCity: { equals: params.toCity, mode: 'insensitive' },
+      status: TripStatus.ACTIVE,
+      seatsAvailable: { gte: params.minSeats },
+    };
+
+    if (params.dateFrom || params.dateTo) {
+      where.departAt = {};
+      if (params.dateFrom) where.departAt.gte = params.dateFrom;
+      if (params.dateTo) where.departAt.lte = params.dateTo;
+    }
+
+    return this.prisma.trip.count({ where });
+  }
+
   async updateStatus(id: string, status: TripStatus): Promise<Trip> {
     return this.prisma.trip.update({
       where: { id },

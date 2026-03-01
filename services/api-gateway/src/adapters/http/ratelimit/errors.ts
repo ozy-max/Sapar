@@ -5,10 +5,7 @@ export interface RateLimitErrorBody {
   readonly traceId: string;
 }
 
-export function buildRateLimitedBody(
-  traceId: string,
-  retryAfterSec: number,
-): RateLimitErrorBody {
+export function buildRateLimitedBody(traceId: string, retryAfterSec: number): RateLimitErrorBody {
   return {
     code: 'RATE_LIMITED',
     message: 'Too many requests',
@@ -17,9 +14,7 @@ export function buildRateLimitedBody(
   };
 }
 
-export function buildLimiterUnavailableBody(
-  traceId: string,
-): RateLimitErrorBody {
+export function buildLimiterUnavailableBody(traceId: string): RateLimitErrorBody {
   return {
     code: 'RATE_LIMITER_UNAVAILABLE',
     message: 'Rate limiter is temporarily unavailable',

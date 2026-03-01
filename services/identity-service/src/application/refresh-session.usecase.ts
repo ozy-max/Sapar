@@ -43,15 +43,24 @@ export class RefreshSessionUseCase {
 
     const { userId, userEmail, userRoles } = await this.prisma.$transaction(
       async (tx) => {
-        const rows = await tx.$queryRaw<LockedTokenRow[]>`
+        const anyRows = await tx.$queryRaw<LockedTokenRow[]>`
           SELECT id, user_id, token_hash, expires_at, revoked_at
           FROM refresh_tokens
           WHERE token_hash = ${tokenHash}
-            AND revoked_at IS NULL
-            AND expires_at > NOW()
           FOR UPDATE
         `;
 
+        if (anyRows.length > 0 && anyRows[0].revoked_at !== null) {
+          const compromisedUserId = anyRows[0].user_id;
+          await tx.$executeRaw`
+            UPDATE refresh_tokens SET revoked_at = NOW()
+            WHERE user_id = ${compromisedUserId}::uuid AND revoked_at IS NULL
+          `;
+          this.logger.warn(`Refresh token reuse detected, all tokens revoked: userId=${compromisedUserId}`);
+          throw new InvalidRefreshTokenError();
+        }
+
+        const rows = anyRows.filter(r => r.revoked_at === null && r.expires_at > new Date());
         if (rows.length === 0) {
           throw new InvalidRefreshTokenError();
         }

@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -93,7 +94,7 @@ export class TripsController {
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   @ApiResponse({ status: 409, type: ErrorResponseDto })
   async book(
-    @Param('tripId') tripId: string,
+    @Param('tripId', ParseUUIDPipe) tripId: string,
     @CurrentUser() userId: string,
     @Body(new ZodValidationPipe(bookSeatSchema)) input: BookSeatInput,
     @Headers('idempotency-key') idempotencyKey?: string,
@@ -120,7 +121,7 @@ export class TripsController {
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   @ApiResponse({ status: 409, type: ErrorResponseDto })
   async cancel(
-    @Param('tripId') tripId: string,
+    @Param('tripId', ParseUUIDPipe) tripId: string,
     @CurrentUser() userId: string,
     @Headers('x-request-id') traceId?: string,
   ): Promise<{ tripId: string; status: string }> {

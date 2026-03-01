@@ -1,14 +1,18 @@
 import { Controller, Get, Res } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
 import { registry } from './metrics.registry';
 
-@ApiTags('metrics')
-@Controller('metrics')
+/**
+ * SECURITY: /metrics is unauthenticated by design for Prometheus scraping.
+ * In production, restrict access at the infrastructure level (ingress rules,
+ * NetworkPolicy, or a dedicated internal port).
+ */
+@ApiExcludeController()
+@Controller()
 export class MetricsController {
-  @Get()
-  @ApiOperation({ summary: 'Prometheus metrics' })
-  async metrics(@Res() res: Response): Promise<void> {
+  @Get('metrics')
+  async getMetrics(@Res() res: Response): Promise<void> {
     res.set('Content-Type', registry.contentType);
     res.end(await registry.metrics());
   }

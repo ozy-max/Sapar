@@ -10,6 +10,7 @@ import {
   PaymentIntentNotFoundError,
   InvalidPaymentStateError,
   PspUnavailableError,
+  ForbiddenPaymentError,
 } from '../shared/errors';
 
 @Injectable()
@@ -24,13 +25,14 @@ export class CancelIntentUseCase {
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async execute(intentId: string, traceId = ''): Promise<{ status: string }> {
+  async execute(intentId: string, userId: string, traceId = ''): Promise<{ status: string }> {
     const env = loadEnv();
 
     return this.prisma.$transaction(
       async (tx) => {
         const row = await this.intentRepo.findByIdForUpdate(intentId, tx);
         if (!row) throw new PaymentIntentNotFoundError();
+        if (row.payer_id !== userId) throw new ForbiddenPaymentError();
 
         const allowedStatuses = ['CREATED', 'HOLD_PLACED'];
         if (!allowedStatuses.includes(row.status)) {
@@ -76,7 +78,7 @@ export class CancelIntentUseCase {
 
         return { status: 'CANCELLED' };
       },
-      { timeout: env.PSP_TIMEOUT_MS + 3000 },
+      { timeout: env.PSP_TIMEOUT_MS + 5000 },
     );
   }
 }

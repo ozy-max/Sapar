@@ -52,11 +52,12 @@ export class NotificationsController {
   @ApiResponse({ status: 409, description: 'Idempotency conflict' })
   async create(
     @Body(new ZodValidationPipe(createNotificationSchema)) input: CreateNotificationInput,
-    @Req() _req: Request,
+    @Req() req: Request,
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<EnqueueResponseDto> {
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
     return this.enqueue.execute({
-      userId: input.userId,
+      userId,
       channel: input.channel,
       templateKey: input.templateKey,
       payload: input.payload,
@@ -70,8 +71,10 @@ export class NotificationsController {
   @ApiResponse({ status: 404, description: 'Notification not found' })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
   ): Promise<NotificationDetailDto> {
-    return this.getNotification.execute(id);
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
+    return this.getNotification.execute(id, userId);
   }
 
   @Post(':id/cancel')
@@ -82,7 +85,9 @@ export class NotificationsController {
   @ApiResponse({ status: 409, description: 'Invalid state for cancellation' })
   async cancel(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
   ): Promise<CancelResponseDto> {
-    return this.cancelNotification.execute(id);
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
+    return this.cancelNotification.execute(id, userId);
   }
 }

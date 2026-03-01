@@ -1,4 +1,4 @@
-import { Controller, Post, Param, Headers, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Post, Param, Headers, HttpCode, HttpStatus, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -22,7 +22,7 @@ export class BookingsController {
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   @ApiResponse({ status: 409, type: ErrorResponseDto })
   async cancel(
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
     @CurrentUser() userId: string,
     @Headers('x-request-id') traceId?: string,
   ): Promise<{ bookingId: string; status: string }> {

@@ -53,6 +53,8 @@ model PaymentIntent {
 
   @@unique([idempotencyKey, payerId])
   @@index([status])
+  @@index([pspIntentId])
+  @@index([payerId])
   @@map("payment_intents")
 }
 

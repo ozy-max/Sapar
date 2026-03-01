@@ -15,8 +15,7 @@ import { loadEnv } from './config/env';
     LoggerModule.forRoot({
       pinoHttp: {
         level: loadEnv().LOG_LEVEL,
-        transport:
-          loadEnv().NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
+        transport: loadEnv().NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
         genReqId: (req: IncomingMessage): string =>
           (req.headers['x-request-id'] as string) || randomUUID(),
         serializers: {

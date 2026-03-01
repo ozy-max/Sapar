@@ -19,19 +19,19 @@ export class CancelNotificationUseCase {
     private readonly eventRepo: NotificationEventRepository,
   ) {}
 
-  async execute(id: string): Promise<CancelOutput> {
-    const notif = await this.notifRepo.findById(id);
-    if (!notif) {
-      throw new NotificationNotFoundError();
-    }
-
-    if (notif.status !== 'PENDING' && notif.status !== 'FAILED_RETRY') {
-      throw new InvalidStateError(
-        `Cannot cancel notification in status '${notif.status}'`,
-      );
-    }
-
+  async execute(id: string, userId: string): Promise<CancelOutput> {
     await this.prisma.$transaction(async (tx) => {
+      const notif = await this.notifRepo.lockById(id, tx);
+      if (!notif || notif.user_id !== userId) {
+        throw new NotificationNotFoundError();
+      }
+
+      if (notif.status !== 'PENDING' && notif.status !== 'FAILED_RETRY') {
+        throw new InvalidStateError(
+          `Cannot cancel notification in status '${notif.status}'`,
+        );
+      }
+
       await this.notifRepo.updateStatus(id, 'CANCELLED', undefined, tx);
       await this.eventRepo.create(
         {
@@ -41,7 +41,7 @@ export class CancelNotificationUseCase {
         },
         tx,
       );
-    });
+    }, { timeout: 5000 });
 
     this.logger.log(`Notification ${id} cancelled`);
 

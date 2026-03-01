@@ -7,10 +7,18 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { z } from 'zod';
 import { PaymentIntentRepository } from '../../db/payment-intent.repository';
 import { ReceiptRepository } from '../../db/receipt.repository';
+import { HmacGuard } from '../guards/hmac.guard';
+import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
+
+const batchSummarySchema = z.object({
+  bookingIds: z.array(z.string().uuid()).min(1).max(200),
+});
 
 interface PaymentSummary {
   bookingId: string;
@@ -21,6 +29,7 @@ interface PaymentSummary {
 }
 
 @ApiTags('BFF Read')
+@UseGuards(HmacGuard)
 @Controller('bff')
 export class BffReadController {
   constructor(
@@ -62,13 +71,18 @@ export class BffReadController {
   @ApiOperation({ summary: 'Batch payment summaries for bookings (BFF read)' })
   @ApiResponse({ status: 200, description: 'Batch payment summaries' })
   async batchPaymentSummary(
-    @Body() body: { bookingIds: string[] },
+    @Body(new ZodValidationPipe(batchSummarySchema)) body: { bookingIds: string[] },
   ): Promise<{ items: PaymentSummary[] }> {
-    const ids = (body.bookingIds ?? []).slice(0, 200);
-    if (ids.length === 0) return { items: [] };
+    const ids = body.bookingIds;
 
     const intents = await this.intentRepo.findByBookingIds(ids);
     const intentMap = new Map(intents.map((i) => [i.bookingId, i]));
+
+    const intentIds = intents.map((i) => i.id);
+    const receipts = await this.receiptRepo.findByPaymentIntentIds(intentIds);
+    const receiptMap = new Map(
+      receipts.map((r) => [r.paymentIntentId, r.status]),
+    );
 
     const items: PaymentSummary[] = ids.map((bookingId) => {
       const intent = intentMap.get(bookingId);
@@ -86,7 +100,7 @@ export class BffReadController {
         paymentIntentId: intent.id,
         paymentStatus: intent.status,
         amountKgs: intent.amountKgs,
-        receiptStatus: null,
+        receiptStatus: receiptMap.get(intent.id) ?? null,
       };
     });
 

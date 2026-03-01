@@ -56,22 +56,24 @@ describe('BFF v1 endpoints', () => {
   it('GET /v1/trips/search returns stable envelope', async () => {
     tripsDs.handler = (_req: IncomingMessage, res: ServerResponse) => {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({
-        items: [
-          {
-            tripId: TRIP_UUID,
-            driverId: DRIVER_UUID,
-            fromCity: 'Бишкек',
-            toCity: 'Ош',
-            departAt: '2026-06-15T08:00:00.000Z',
-            seatsTotal: 4,
-            seatsAvailable: 3,
-            priceKgs: 1500,
-            status: 'ACTIVE',
-          },
-        ],
-        count: 1,
-      }));
+      res.end(
+        JSON.stringify({
+          items: [
+            {
+              tripId: TRIP_UUID,
+              driverId: DRIVER_UUID,
+              fromCity: 'Бишкек',
+              toCity: 'Ош',
+              departAt: '2026-06-15T08:00:00.000Z',
+              seatsTotal: 4,
+              seatsAvailable: 3,
+              priceKgs: 1500,
+              status: 'ACTIVE',
+            },
+          ],
+          count: 1,
+        }),
+      );
     };
 
     const res = await request(app.getHttpServer())
@@ -103,26 +105,28 @@ describe('BFF v1 endpoints', () => {
     tripsDs.handler = (req: IncomingMessage, res: ServerResponse) => {
       if (req.url?.startsWith('/bff/bookings/')) {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          bookingId: BOOKING_UUID,
-          tripId: TRIP_UUID,
-          passengerId: 'pass-1',
-          seats: 2,
-          status: 'CONFIRMED',
-          createdAt: '2026-06-14T10:00:00.000Z',
-          updatedAt: '2026-06-14T10:05:00.000Z',
-          trip: {
+        res.end(
+          JSON.stringify({
+            bookingId: BOOKING_UUID,
             tripId: TRIP_UUID,
-            driverId: DRIVER_UUID,
-            fromCity: 'Бишкек',
-            toCity: 'Ош',
-            departAt: '2026-06-15T08:00:00.000Z',
-            seatsTotal: 4,
-            seatsAvailable: 2,
-            priceKgs: 1500,
-            status: 'ACTIVE',
-          },
-        }));
+            passengerId: 'pass-1',
+            seats: 2,
+            status: 'CONFIRMED',
+            createdAt: '2026-06-14T10:00:00.000Z',
+            updatedAt: '2026-06-14T10:05:00.000Z',
+            trip: {
+              tripId: TRIP_UUID,
+              driverId: DRIVER_UUID,
+              fromCity: 'Бишкек',
+              toCity: 'Ош',
+              departAt: '2026-06-15T08:00:00.000Z',
+              seatsTotal: 4,
+              seatsAvailable: 2,
+              priceKgs: 1500,
+              status: 'ACTIVE',
+            },
+          }),
+        );
         return;
       }
       defaultTripsHandler(req, res);
@@ -131,13 +135,15 @@ describe('BFF v1 endpoints', () => {
     paymentsDs.handler = (req: IncomingMessage, res: ServerResponse) => {
       if (req.url?.startsWith('/bff/bookings/')) {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          bookingId: BOOKING_UUID,
-          paymentIntentId: 'pi-1',
-          paymentStatus: 'HOLD_PLACED',
-          amountKgs: 3000,
-          receiptStatus: null,
-        }));
+        res.end(
+          JSON.stringify({
+            bookingId: BOOKING_UUID,
+            paymentIntentId: 'pi-1',
+            paymentStatus: 'HOLD_PLACED',
+            amountKgs: 3000,
+            receiptStatus: null,
+          }),
+        );
         return;
       }
       defaultPaymentsHandler(req, res);
@@ -146,6 +152,7 @@ describe('BFF v1 endpoints', () => {
     const res = await request(app.getHttpServer())
       .get(`/v1/bookings/${BOOKING_UUID}`)
       .set('x-request-id', 'trace-2')
+      .set('authorization', 'Bearer test-jwt-token')
       .expect(200);
 
     expect(res.body.bookingId).toBe(BOOKING_UUID);
@@ -162,24 +169,26 @@ describe('BFF v1 endpoints', () => {
     tripsDs.handler = (req: IncomingMessage, res: ServerResponse) => {
       if (req.url?.startsWith('/bff/me/bookings')) {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          items: [
-            {
-              bookingId: BOOKING_UUID,
-              tripId: TRIP_UUID,
-              seats: 1,
-              status: 'CONFIRMED',
-              createdAt: '2026-06-14T10:00:00.000Z',
-              trip: {
-                fromCity: 'Бишкек',
-                toCity: 'Ош',
-                departAt: '2026-06-15T08:00:00.000Z',
-                priceKgs: 1500,
+        res.end(
+          JSON.stringify({
+            items: [
+              {
+                bookingId: BOOKING_UUID,
+                tripId: TRIP_UUID,
+                seats: 1,
+                status: 'CONFIRMED',
+                createdAt: '2026-06-14T10:00:00.000Z',
+                trip: {
+                  fromCity: 'Бишкек',
+                  toCity: 'Ош',
+                  departAt: '2026-06-15T08:00:00.000Z',
+                  priceKgs: 1500,
+                },
               },
-            },
-          ],
-          total: 1,
-        }));
+            ],
+            total: 1,
+          }),
+        );
         return;
       }
       defaultTripsHandler(req, res);
@@ -188,17 +197,19 @@ describe('BFF v1 endpoints', () => {
     paymentsDs.handler = (req: IncomingMessage, res: ServerResponse) => {
       if (req.url === '/bff/payments/summary' && req.method === 'POST') {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          items: [
-            {
-              bookingId: BOOKING_UUID,
-              paymentIntentId: 'pi-2',
-              paymentStatus: 'CAPTURED',
-              amountKgs: 1500,
-              receiptStatus: 'ISSUED',
-            },
-          ],
-        }));
+        res.end(
+          JSON.stringify({
+            items: [
+              {
+                bookingId: BOOKING_UUID,
+                paymentIntentId: 'pi-2',
+                paymentStatus: 'CAPTURED',
+                amountKgs: 1500,
+                receiptStatus: 'ISSUED',
+              },
+            ],
+          }),
+        );
         return;
       }
       defaultPaymentsHandler(req, res);
@@ -270,6 +281,49 @@ describe('BFF v1 endpoints', () => {
 
     process.env['BFF_TIMEOUT_MS'] = '2500';
     resetEnvCache();
+  });
+
+  /* ── 6) Auth & input validation ── */
+
+  it('GET /v1/me/bookings without Authorization → 401', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/v1/me/bookings')
+      .set('x-request-id', 'trace-noauth-1');
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBeDefined();
+    expect(res.body.traceId).toBe('trace-noauth-1');
+  });
+
+  it('GET /v1/me/bookings with non-Bearer Authorization → 401', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/v1/me/bookings')
+      .set('x-request-id', 'trace-noauth-2')
+      .set('authorization', 'Basic dXNlcjpwYXNz');
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBeDefined();
+    expect(res.body.traceId).toBe('trace-noauth-2');
+  });
+
+  it('GET /v1/bookings/:bookingId with non-UUID bookingId → 400', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/v1/bookings/not-a-uuid')
+      .set('x-request-id', 'trace-baduuid-1');
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.traceId).toBe('trace-baduuid-1');
+  });
+
+  it('GET /v1/trips/:tripId with path traversal attempt → 400', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/v1/trips/../../admin')
+      .set('x-request-id', 'trace-traversal-1');
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.traceId).toBe('trace-traversal-1');
   });
 });
 

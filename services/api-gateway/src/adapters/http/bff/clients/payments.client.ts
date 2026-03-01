@@ -27,7 +27,7 @@ export async function getPaymentSummary(
 ): Promise<BffResponse<PaymentSummary>> {
   return bffFetch<PaymentSummary>('payments', {
     baseUrl: paymentsBaseUrl(),
-    path: `/bff/bookings/${bookingId}/payment-summary`,
+    path: `/bff/bookings/${encodeURIComponent(bookingId)}/payment-summary`,
     timeoutMs: timeoutMs(),
     headers,
   });

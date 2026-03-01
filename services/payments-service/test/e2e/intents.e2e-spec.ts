@@ -13,7 +13,9 @@ describe('Payment Intents (e2e)', () => {
   let prisma: PrismaService;
   let fakePsp: FakePspAdapter;
   let token: string;
+  let tokenUserB: string;
   const userId = randomUUID();
+  const userIdB = randomUUID();
 
   beforeAll(async () => {
     resetEnvCache();
@@ -22,6 +24,7 @@ describe('Payment Intents (e2e)', () => {
     prisma = ctx.prisma;
     fakePsp = ctx.fakePsp;
     token = signToken(userId);
+    tokenUserB = signToken(userIdB);
   });
 
   afterAll(async () => {
@@ -111,6 +114,24 @@ describe('Payment Intents (e2e)', () => {
 
       expect(res.body.code).toBe('VALIDATION_ERROR');
     });
+
+    it('should reject intent creation for booking owned by another user', async () => {
+      const bookingId = randomUUID();
+
+      await request(app.getHttpServer())
+        .post('/payments/intents')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ bookingId, amountKgs: 1500 })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/payments/intents')
+        .set('Authorization', `Bearer ${tokenUserB}`)
+        .send({ bookingId, amountKgs: 1500 })
+        .expect(409);
+
+      expect(res.body.code).toBe('INVALID_PAYMENT_STATE');
+    });
   });
 
   describe('POST /payments/intents/:id/capture', () => {
@@ -159,6 +180,23 @@ describe('Payment Intents (e2e)', () => {
       expect(res.body.code).toBe('INVALID_PAYMENT_STATE');
     });
 
+    it('should return 403 when different user tries to capture', async () => {
+      const bookingId = randomUUID();
+
+      const createRes = await request(app.getHttpServer())
+        .post('/payments/intents')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ bookingId, amountKgs: 1500 })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/payments/intents/${createRes.body.paymentIntentId}/capture`)
+        .set('Authorization', `Bearer ${tokenUserB}`)
+        .expect(403);
+
+      expect(res.body.code).toBe('FORBIDDEN');
+    });
+
     it('should return 404 for non-existent intent', async () => {
       const res = await request(app.getHttpServer())
         .post(`/payments/intents/${randomUUID()}/capture`)
@@ -185,6 +223,23 @@ describe('Payment Intents (e2e)', () => {
         .expect(200);
 
       expect(cancelRes.body).toEqual({ status: 'CANCELLED' });
+    });
+
+    it('should return 403 when different user tries to cancel', async () => {
+      const bookingId = randomUUID();
+
+      const createRes = await request(app.getHttpServer())
+        .post('/payments/intents')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ bookingId, amountKgs: 1500 })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/payments/intents/${createRes.body.paymentIntentId}/cancel`)
+        .set('Authorization', `Bearer ${tokenUserB}`)
+        .expect(403);
+
+      expect(res.body.code).toBe('FORBIDDEN');
     });
 
     it('should return 409 when cancelling a captured intent', async () => {
@@ -231,6 +286,28 @@ describe('Payment Intents (e2e)', () => {
         .expect(200);
 
       expect(refundRes.body).toEqual({ status: 'REFUNDED' });
+    });
+
+    it('should return 403 when different user tries to refund', async () => {
+      const bookingId = randomUUID();
+
+      const createRes = await request(app.getHttpServer())
+        .post('/payments/intents')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ bookingId, amountKgs: 1500 })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/payments/intents/${createRes.body.paymentIntentId}/capture`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/payments/intents/${createRes.body.paymentIntentId}/refund`)
+        .set('Authorization', `Bearer ${tokenUserB}`)
+        .expect(403);
+
+      expect(res.body.code).toBe('FORBIDDEN');
     });
 
     it('should return 409 when refunding before capture', async () => {

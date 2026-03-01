@@ -1,4 +1,8 @@
 node_modules/
 dist/
 .env
+.env.docker
+.env.*
+!.env.docker.example
+!.env.example
 coverage/

@@ -48,6 +48,7 @@ export class OutboxEventRepository {
         AND next_retry_at <= NOW()
       ORDER BY next_retry_at
       LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
     `;
     return rows.map((r) => r.id);
   }

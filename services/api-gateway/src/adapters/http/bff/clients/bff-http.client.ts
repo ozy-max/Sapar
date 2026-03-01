@@ -1,6 +1,8 @@
 import { request as undiciRequest } from 'undici';
+import { createHmac } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { getSharedDispatcher } from '../../proxy/http-client';
+import { loadEnv } from '../../../../config/env';
 
 const logger = new Logger('BffHttpClient');
 
@@ -42,15 +44,23 @@ export async function bffFetch<T>(
   const method = opts.method ?? 'GET';
   const start = performance.now();
 
+  const bodyStr = opts.body !== undefined ? JSON.stringify(opts.body) : '';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const hmacSignature = createHmac('sha256', loadEnv().EVENTS_HMAC_SECRET)
+    .update(`${timestamp}.${bodyStr}`)
+    .digest('hex');
+
   try {
     const resp = await undiciRequest(url, {
       method,
       headers: {
         'content-type': 'application/json',
         accept: 'application/json',
+        'x-event-signature': hmacSignature,
+        'x-event-timestamp': timestamp,
         ...opts.headers,
       },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body: bodyStr || undefined,
       dispatcher: getSharedDispatcher(),
       signal: AbortSignal.timeout(opts.timeoutMs),
     });
@@ -86,9 +96,7 @@ export async function bffFetch<T>(
     const err = error as Error;
     const msg = err.message?.toLowerCase() ?? '';
     const isTimeout =
-      msg.includes('abort') ||
-      msg.includes('timeout') ||
-      err.name === 'TimeoutError';
+      msg.includes('abort') || msg.includes('timeout') || err.name === 'TimeoutError';
 
     logger.error({
       msg: 'bff_fetch_error',

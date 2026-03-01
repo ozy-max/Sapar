@@ -8,6 +8,7 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationWorker.name);
   private intervalHandle?: ReturnType<typeof setInterval>;
   private running = false;
+  private currentTick?: Promise<void>;
 
   constructor(private readonly processNotifications: ProcessNotificationsUseCase) {}
 
@@ -26,15 +27,23 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
     }, env.WORKER_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = undefined;
+    }
+    if (this.currentTick) {
+      await this.currentTick;
     }
   }
 
   async tick(): Promise<void> {
     if (this.running) return;
+    this.currentTick = this.doTick();
+    await this.currentTick;
+  }
+
+  private async doTick(): Promise<void> {
     this.running = true;
     try {
       const result = await this.processNotifications.processOnce();

@@ -5,7 +5,7 @@ import { json } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './adapters/http/filters/all-exceptions.filter';
 import { requestIdMiddleware } from './adapters/http/middleware/request-id.middleware';
-import { getRedisClient } from './adapters/redis/redis.client';
+import { getRedisClient, closeRedisClient } from './adapters/redis/redis.client';
 import { RateLimitService } from './adapters/http/ratelimit/ratelimit.service';
 import { buildRateLimitPolicies } from './adapters/http/ratelimit/ratelimit.policy';
 import { createRateLimitGuard } from './adapters/http/ratelimit/ratelimit.guard';
@@ -24,9 +24,17 @@ async function bootstrap(): Promise<void> {
     credentials: !isWildcard,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
-    exposedHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    exposedHeaders: [
+      'X-Request-Id',
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+    ],
     maxAge: 600,
   });
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', env.TRUST_PROXY ? 1 : false);
 
   app.use(json({ limit: env.MAX_BODY_BYTES }));
   app.use(requestIdMiddleware);
@@ -43,13 +51,24 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Sapar API Gateway')
-    .setDescription('Public edge API for the Sapar ride-sharing platform')
-    .setVersion('0.0.1')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('swagger', app, document);
+  if (env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Sapar API Gateway')
+      .setDescription('Public edge API for the Sapar ride-sharing platform')
+      .setVersion('0.0.1')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('swagger', app, document);
+  }
+
+  app.enableShutdownHooks();
+
+  process.on('SIGTERM', async () => {
+    await closeRedisClient();
+  });
+  process.on('SIGINT', async () => {
+    await closeRedisClient();
+  });
 
   await app.listen(env.PORT, '0.0.0.0');
 }

@@ -67,9 +67,7 @@ describe('Rate Limit — Identity', () => {
 
   it('allows requests under the limit', async () => {
     for (let i = 0; i < IDENTITY_RPM; i++) {
-      const res = await request(app.getHttpServer())
-        .get('/identity/ping')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/identity/ping').expect(200);
       expect(res.body).toEqual({ ok: true });
     }
   });
@@ -79,9 +77,7 @@ describe('Rate Limit — Identity', () => {
       await request(app.getHttpServer()).get('/identity/ping').expect(200);
     }
 
-    const res = await request(app.getHttpServer())
-      .get('/identity/ping')
-      .expect(429);
+    const res = await request(app.getHttpServer()).get('/identity/ping').expect(429);
 
     expect(res.body.code).toBe('RATE_LIMITED');
     expect(res.body.message).toBe('Too many requests');
@@ -136,5 +132,23 @@ describe('Rate Limit — Identity', () => {
       .expect(200);
 
     expect(res.headers['x-request-id']).toBe(traceId);
+  });
+
+  it('rate-limit key is IP-based — different Auth headers share the same bucket', async () => {
+    for (let i = 0; i < IDENTITY_RPM; i++) {
+      await request(app.getHttpServer())
+        .get('/identity/ping')
+        .set('Authorization', `Bearer invalid-token-${i}`)
+        .expect(200);
+    }
+
+    // Next request with yet another Auth header should be rate-limited
+    // because all requests came from the same IP
+    const res = await request(app.getHttpServer())
+      .get('/identity/ping')
+      .set('Authorization', 'Bearer invalid-token-overflow')
+      .expect(429);
+
+    expect(res.body.code).toBe('RATE_LIMITED');
   });
 });

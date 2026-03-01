@@ -3,12 +3,7 @@ import { Logger } from '@nestjs/common';
 import { request as undiciRequest } from 'undici';
 import { RouteEntry } from './route-table';
 import { pickRequestHeaders, pickResponseHeaders, HeadersRecord } from './headers';
-import {
-  createProxyError,
-  mapDownstreamError,
-  ProxyErrorCode,
-  UnifiedErrorBody,
-} from './errors';
+import { createProxyError, mapDownstreamError, ProxyErrorCode, UnifiedErrorBody } from './errors';
 import { ProxyMetrics } from './metrics';
 import { getSharedDispatcher } from './http-client';
 import { loadEnv } from '../../../config/env';
@@ -29,9 +24,7 @@ export async function handleProxy(
   const start = performance.now();
 
   const bodyBytes = req.body
-    ? Buffer.byteLength(
-        typeof req.body === 'string' ? req.body : JSON.stringify(req.body),
-      )
+    ? Buffer.byteLength(typeof req.body === 'string' ? req.body : JSON.stringify(req.body))
     : 0;
 
   if (bodyBytes > env.MAX_BODY_BYTES) {
@@ -54,9 +47,7 @@ export async function handleProxy(
   const forwardHeaders = pickRequestHeaders(req.headers);
   const hasBody = method !== 'GET' && method !== 'HEAD' && method !== 'DELETE';
   const requestBody =
-    hasBody && req.body !== undefined && req.body !== null
-      ? JSON.stringify(req.body)
-      : undefined;
+    hasBody && req.body !== undefined && req.body !== null ? JSON.stringify(req.body) : undefined;
 
   try {
     const downstream = await undiciRequest(fullUrl, {
@@ -86,20 +77,34 @@ export async function handleProxy(
       latencyMs,
     });
 
-    const safeHeaders = pickResponseHeaders(
-      downstream.headers as HeadersRecord,
-    );
+    const safeHeaders = pickResponseHeaders(downstream.headers as HeadersRecord);
     for (const [key, value] of Object.entries(safeHeaders)) {
       res.setHeader(key, value);
     }
 
-    const responseBody = await downstream.body.text();
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    const maxResponseBytes = env.MAX_BODY_BYTES * 2;
+    for await (const chunk of downstream.body) {
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      totalBytes += buf.length;
+      if (totalBytes > maxResponseBytes) {
+        downstream.body.destroy();
+        const err = createProxyError(ProxyErrorCode.PAYLOAD_TOO_LARGE, traceId, {
+          maxBytes: maxResponseBytes,
+          receivedBytes: totalBytes,
+        });
+        const body = err.getResponse() as UnifiedErrorBody;
+        recordAppError(body.code);
+        res.status(err.getStatus()).json(body);
+        return;
+      }
+      chunks.push(buf);
+    }
+    const responseBody = Buffer.concat(chunks).toString('utf-8');
     res.status(status);
 
-    if (
-      safeHeaders['content-type']?.includes('application/json') &&
-      responseBody.length > 0
-    ) {
+    if (safeHeaders['content-type']?.includes('application/json') && responseBody.length > 0) {
       try {
         const parsed: unknown = JSON.parse(responseBody);
         res.json(parsed);

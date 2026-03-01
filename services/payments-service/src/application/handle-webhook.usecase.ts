@@ -36,17 +36,32 @@ export class HandleWebhookUseCase {
     private readonly eventRepo: PaymentEventRepository,
   ) {}
 
-  verifySignature(rawBody: Buffer, signature: string): void {
+  verifySignature(rawBody: Buffer, signature: string, timestamp?: string): void {
     const env = loadEnv();
     const expected = createHmac('sha256', env.PAYMENTS_WEBHOOK_SECRET)
       .update(rawBody)
       .digest('hex');
 
+    // Both signature and expected are hex-encoded strings (ASCII subset of UTF-8).
+    // Comparing as UTF-8 buffers is correct for timing-safe hex comparison.
     const sigBuf = Buffer.from(signature, 'utf8');
     const expBuf = Buffer.from(expected, 'utf8');
 
     if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
       throw new WebhookSignatureInvalidError();
+    }
+
+    if (!timestamp && process.env.NODE_ENV !== 'test') {
+      throw new WebhookSignatureInvalidError();
+    }
+
+    if (timestamp) {
+      const ts = parseInt(timestamp, 10);
+      const now = Math.floor(Date.now() / 1000);
+      const maxAge = 300; // 5 minutes
+      if (isNaN(ts) || Math.abs(now - ts) > maxAge) {
+        throw new WebhookSignatureInvalidError();
+      }
     }
   }
 
@@ -59,64 +74,63 @@ export class HandleWebhookUseCase {
       return;
     }
 
-    const mapping = WEBHOOK_TYPE_MAP[payload.type];
-    if (!mapping) {
-      this.logger.warn(`Unknown webhook type: ${payload.type}, recording as event only`);
-      await this.eventRepo.create({
-        paymentIntentId: await this.resolveIntentId(payload.pspIntentId),
-        type: 'WEBHOOK_RECEIVED',
-        externalEventId: payload.eventId,
-        payloadJson: payload as unknown as Prisma.InputJsonValue,
-      });
-      return;
-    }
+    try {
+      const mapping = WEBHOOK_TYPE_MAP[payload.type];
+      if (!mapping) {
+        this.logger.warn({ msg: 'Unknown webhook event type, ignoring', type: payload.type, pspIntentId: payload.pspIntentId });
+        return;
+      }
 
-    const intent = await this.intentRepo.findByPspIntentId(payload.pspIntentId);
-    if (!intent) {
-      throw new PaymentIntentNotFoundError();
-    }
+      const intent = await this.intentRepo.findByPspIntentId(payload.pspIntentId);
+      if (!intent) {
+        throw new PaymentIntentNotFoundError();
+      }
 
-    const currentStatus = intent.status as PaymentIntentStatus;
-    if (currentStatus === mapping.intentStatus) {
-      await this.eventRepo.create({
-        paymentIntentId: intent.id,
-        type: 'WEBHOOK_RECEIVED',
-        externalEventId: payload.eventId,
-        payloadJson: payload as unknown as Prisma.InputJsonValue,
-      });
-      return;
-    }
-
-    if (!canTransition(currentStatus, mapping.intentStatus)) {
-      this.logger.warn(
-        `Webhook ${payload.eventId}: cannot transition ${currentStatus} -> ${mapping.intentStatus}`,
-      );
-      await this.eventRepo.create({
-        paymentIntentId: intent.id,
-        type: 'WEBHOOK_RECEIVED',
-        externalEventId: payload.eventId,
-        payloadJson: { ...payload, skipped: true } as unknown as Prisma.InputJsonValue,
-      });
-      return;
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await this.intentRepo.updateStatus(intent.id, mapping.intentStatus, tx);
-      await this.eventRepo.create(
-        {
+      const currentStatus = intent.status as PaymentIntentStatus;
+      if (currentStatus === mapping.intentStatus) {
+        await this.eventRepo.create({
           paymentIntentId: intent.id,
-          type: mapping.eventType,
+          type: 'WEBHOOK_RECEIVED',
           externalEventId: payload.eventId,
           payloadJson: payload as unknown as Prisma.InputJsonValue,
-        },
-        tx,
-      );
-    });
-  }
+        });
+        return;
+      }
 
-  private async resolveIntentId(pspIntentId: string): Promise<string> {
-    const intent = await this.intentRepo.findByPspIntentId(pspIntentId);
-    if (!intent) throw new PaymentIntentNotFoundError();
-    return intent.id;
+      if (!canTransition(currentStatus, mapping.intentStatus)) {
+        this.logger.warn(
+          `Webhook ${payload.eventId}: cannot transition ${currentStatus} -> ${mapping.intentStatus}`,
+        );
+        await this.eventRepo.create({
+          paymentIntentId: intent.id,
+          type: 'WEBHOOK_RECEIVED',
+          externalEventId: payload.eventId,
+          payloadJson: { ...payload, skipped: true } as unknown as Prisma.InputJsonValue,
+        });
+        return;
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await this.intentRepo.updateStatus(intent.id, mapping.intentStatus, tx);
+        await this.eventRepo.create(
+          {
+            paymentIntentId: intent.id,
+            type: mapping.eventType,
+            externalEventId: payload.eventId,
+            payloadJson: payload as unknown as Prisma.InputJsonValue,
+          },
+          tx,
+        );
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.log(`Webhook event ${payload.eventId} duplicate (concurrent), treating as idempotent`);
+        return;
+      }
+      throw error;
+    }
   }
 }

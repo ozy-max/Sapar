@@ -100,11 +100,20 @@ services/<name>/
 - Node.js 20 LTS
 - Docker & Docker Compose
 
+### Подготовка переменных окружения
+
+Скопируйте файл-пример и заполните своими значениями:
+
+```bash
+cp .env.docker.example .env.docker
+# Отредактируйте .env.docker, заменив placeholder'ы на реальные секреты
+```
+
 ### Запуск всего стека
 
 ```bash
 # Поднять инфраструктуру (Postgres ×6, Redis) + все сервисы
-docker-compose up -d
+docker-compose --env-file .env.docker up -d
 
 # Проверить здоровье
 curl http://localhost:3000/health   # api-gateway
@@ -145,6 +154,8 @@ docker-compose -f docker-compose.observability.yml up -d
 # Prometheus:  http://localhost:9090
 ```
 
+> **Примечание:** `docker-compose.yml` и `docker-compose.observability.yml` должны запускаться из одной директории, чтобы использовать общую Docker-сеть (`default`). Если стек приложений уже запущен, observability-контейнеры автоматически подключатся к той же сети.
+
 ---
 
 ## CI/CD
@@ -158,6 +169,11 @@ Pipeline per service:
 4. `npm run test` (unit)
 5. `npm run test:e2e` (с Postgres + Redis в CI)
 6. `docker build` + smoke-test `/health`
+
+> **Push образов в реестр:** для этапа push в CI необходимо настроить GitHub Secrets:
+> - `REGISTRY_URL` — адрес container registry (например, `ghcr.io/your-org`)
+> - `REGISTRY_USERNAME` — логин для реестра
+> - `REGISTRY_PASSWORD` — пароль / токен для реестра
 
 ---
 

@@ -33,6 +33,10 @@ export class FakePspAdapter implements PspAdapter {
     await this.maybeThrow(`refund(${pspIntentId})`);
   }
 
+  async getStatus(_pspIntentId: string): Promise<{ status: string }> {
+    return { status: 'hold_placed' };
+  }
+
   private async maybeThrow(operation: string): Promise<void> {
     if (this.scenario === 'failure') {
       throw new Error(`PSP failure: ${operation}`);

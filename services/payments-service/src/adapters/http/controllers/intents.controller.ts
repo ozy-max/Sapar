@@ -75,9 +75,11 @@ export class IntentsController {
   @ApiResponse({ status: 502, description: 'PSP unavailable' })
   async capture(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
     @Headers('x-request-id') traceId?: string,
   ): Promise<StatusResponseDto> {
-    return this.captureIntent.execute(id, traceId ?? '');
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
+    return this.captureIntent.execute(id, userId, traceId ?? '');
   }
 
   @Post(':id/cancel')
@@ -89,9 +91,11 @@ export class IntentsController {
   @ApiResponse({ status: 502, description: 'PSP unavailable' })
   async cancel(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
     @Headers('x-request-id') traceId?: string,
   ): Promise<StatusResponseDto> {
-    return this.cancelIntent.execute(id, traceId ?? '');
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
+    return this.cancelIntent.execute(id, userId, traceId ?? '');
   }
 
   @Post(':id/refund')
@@ -103,8 +107,10 @@ export class IntentsController {
   @ApiResponse({ status: 502, description: 'PSP unavailable' })
   async refund(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
     @Headers('x-request-id') traceId?: string,
   ): Promise<StatusResponseDto> {
-    return this.refundIntent.execute(id, traceId ?? '');
+    const userId = (req as unknown as Record<string, unknown>)['userId'] as string;
+    return this.refundIntent.execute(id, userId, traceId ?? '');
   }
 }

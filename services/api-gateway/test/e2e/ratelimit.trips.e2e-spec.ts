@@ -76,9 +76,7 @@ describe('Rate Limit — Trips', () => {
       await request(app.getHttpServer()).get('/trips/search').expect(200);
     }
 
-    const res = await request(app.getHttpServer())
-      .get('/trips/search')
-      .expect(429);
+    const res = await request(app.getHttpServer()).get('/trips/search').expect(429);
 
     expect(res.body.code).toBe('RATE_LIMITED');
     expect(res.body.message).toBe('Too many requests');

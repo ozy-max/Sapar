@@ -20,15 +20,18 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Sapar Payments Service')
-    .setDescription('Payment processing for Sapar ride bookings')
-    .setVersion('0.0.1')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('swagger', app, document);
+  if (env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Sapar Payments Service')
+      .setDescription('Payment processing for Sapar ride bookings')
+      .setVersion('0.0.1')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('swagger', app, document);
+  }
 
+  app.enableShutdownHooks();
   await app.listen(env.PORT, '0.0.0.0');
 }
 

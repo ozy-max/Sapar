@@ -43,9 +43,7 @@ describe('Identity Proxy', () => {
   });
 
   it('GET /identity/ping -> proxies to downstream', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/identity/ping')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/identity/ping').expect(200);
 
     expect(res.body).toEqual({ service: 'identity', ok: true });
     expect(downstream.lastRequest).not.toBeNull();
@@ -82,9 +80,7 @@ describe('Identity Proxy', () => {
   });
 
   it('generates x-request-id when missing', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/identity/ping')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/identity/ping').expect(200);
 
     const responseRequestId = res.headers['x-request-id'];
     expect(responseRequestId).toBeDefined();
@@ -95,9 +91,7 @@ describe('Identity Proxy', () => {
   });
 
   it('forwards query params', async () => {
-    await request(app.getHttpServer())
-      .get('/identity/search?q=hello&page=2')
-      .expect(200);
+    await request(app.getHttpServer()).get('/identity/search?q=hello&page=2').expect(200);
 
     expect(downstream.lastRequest?.url).toBe('/search?q=hello&page=2');
   });

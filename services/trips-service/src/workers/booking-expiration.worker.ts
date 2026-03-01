@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../adapters/db/prisma.service';
 import { BookingRepository, BookingRow } from '../adapters/db/booking.repository';
 import { OutboxService } from '../shared/outbox.service';
@@ -9,6 +10,7 @@ import { recordBookingExpired, recordBookingTransition } from '../observability/
 export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BookingExpirationWorker.name);
   private intervalHandle?: ReturnType<typeof setInterval>;
+  private currentTick?: Promise<void>;
   private running = false;
 
   constructor(
@@ -26,17 +28,17 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       `Starting expiration worker, interval: ${env.EXPIRATION_WORKER_INTERVAL_MS}ms, TTL: ${env.BOOKING_TTL_SEC}s`,
     );
-    this.intervalHandle = setInterval(
-      () => void this.tick(),
-      env.EXPIRATION_WORKER_INTERVAL_MS,
-    );
+    this.intervalHandle = setInterval(() => {
+      this.currentTick = this.tick();
+    }, env.EXPIRATION_WORKER_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = undefined;
     }
+    if (this.currentTick) await this.currentTick;
   }
 
   async tick(): Promise<void> {
@@ -99,11 +101,11 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
             seats: row.seats,
             reason: 'EXPIRED',
           },
-          traceId: '',
+          traceId: randomUUID(),
         },
         tx,
       );
-    });
+    }, { timeout: 10_000 });
 
     recordBookingExpired();
     recordBookingTransition('PENDING_PAYMENT', 'EXPIRED');

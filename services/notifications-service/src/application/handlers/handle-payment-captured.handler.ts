@@ -1,14 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { EventHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
 
-interface PaymentCapturedPayload {
-  paymentIntentId: string;
-  bookingId: string;
-  passengerId: string;
-  amountKgs: number;
-}
+const payloadSchema = z.object({
+  passengerId: z.string().uuid(),
+  bookingId: z.string().uuid(),
+  amountKgs: z.number().int().positive(),
+  paymentIntentId: z.string().uuid().optional(),
+});
 
 @Injectable()
 export class HandlePaymentCapturedHandler implements EventHandler {
@@ -16,7 +17,16 @@ export class HandlePaymentCapturedHandler implements EventHandler {
   private readonly logger = new Logger(HandlePaymentCapturedHandler.name);
 
   async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
-    const p = event.payload as unknown as PaymentCapturedPayload;
+    const parsed = payloadSchema.safeParse(event.payload);
+    if (!parsed.success) {
+      this.logger.warn({
+        msg: 'Invalid event payload',
+        errors: parsed.error.flatten().fieldErrors,
+        eventId: event.eventId,
+      });
+      return;
+    }
+    const p = parsed.data;
 
     const notification = await tx.notification.create({
       data: {

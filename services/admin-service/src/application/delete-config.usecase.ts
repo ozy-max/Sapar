@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ConfigRepository } from '../adapters/db/config.repository';
 import { AuditLogRepository } from '../adapters/db/audit-log.repository';
 import { ConfigNotFoundError } from '../shared/errors';
@@ -25,7 +26,14 @@ export class DeleteConfigUseCase {
       throw new ConfigNotFoundError(input.key);
     }
 
-    await this.configRepo.deleteByKey(input.key);
+    try {
+      await this.configRepo.deleteByKey(input.key);
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new ConfigNotFoundError(input.key);
+      }
+      throw error;
+    }
 
     await this.auditLogRepo.create({
       actorUserId: input.actorUserId,

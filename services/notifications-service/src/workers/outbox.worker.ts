@@ -16,6 +16,7 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxWorker.name);
   private intervalHandle?: ReturnType<typeof setInterval>;
   private running = false;
+  private currentTick?: Promise<void>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,15 +33,23 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
     this.intervalHandle = setInterval(() => void this.tick(), env.OUTBOX_WORKER_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = undefined;
+    }
+    if (this.currentTick) {
+      await this.currentTick;
     }
   }
 
   async tick(): Promise<void> {
     if (this.running) return;
+    this.currentTick = this.doTick();
+    await this.currentTick;
+  }
+
+  private async doTick(): Promise<void> {
     this.running = true;
     try {
       const dueIds = await this.outboxRepo.findDueIds();
@@ -63,62 +72,88 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
     const backoff = getOutboxBackoffSchedule();
     const targets = parseOutboxTargets(env.OUTBOX_TARGETS);
 
-    await this.prisma.$transaction(
+    // Phase 1: Lock + read in short TX
+    const event = await this.prisma.$transaction(
       async (tx) => {
-        const event = await this.outboxRepo.lockById(eventId, tx);
-        if (!event) return;
+        const locked = await this.outboxRepo.lockById(eventId, tx);
+        if (!locked) return null;
 
-        const targetUrl = targets.get(event.event_type);
+        const targetUrl = targets.get(locked.event_type);
         if (!targetUrl) {
-          await this.outboxRepo.markSent(event.id, tx);
-          recordOutboxEvent(event.event_type, 'sent');
-          return;
+          await this.outboxRepo.markSent(locked.id, tx);
+          recordOutboxEvent(locked.event_type, 'sent');
+          return null;
         }
 
-        const startMs = Date.now();
-        const envelope = this.buildEnvelope(event);
-        const body = JSON.stringify(envelope);
-        const timestamp = Math.floor(Date.now() / 1000);
-        const signature = signEvent(body, timestamp, env.EVENTS_HMAC_SECRET);
+        return locked;
+      },
+      { timeout: 5000 },
+    );
 
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
+    if (!event) return;
 
-          const response = await fetch(targetUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Event-Signature': signature,
-              'X-Event-Timestamp': String(timestamp),
-              'X-Request-Id': event.trace_id,
-            },
-            body,
-            signal: controller.signal,
+    const targetUrl = targets.get(event.event_type)!;
+    const startMs = Date.now();
+    const envelope = this.buildEnvelope(event);
+    const body = JSON.stringify(envelope);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = signEvent(body, timestamp, env.EVENTS_HMAC_SECRET);
+
+    // Phase 2: HTTP delivery OUTSIDE TX
+    let deliverySuccess = false;
+    let latencyMs = 0;
+    let errorMsg = '';
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
+
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Event-Signature': signature,
+          'X-Event-Timestamp': String(timestamp),
+          'X-Request-Id': event.trace_id,
+        },
+        body,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      latencyMs = Date.now() - startMs;
+
+      if (response.ok) {
+        deliverySuccess = true;
+      } else {
+        const responseText = await response.text();
+        errorMsg = `HTTP ${response.status}: ${responseText}`;
+      }
+    } catch (err) {
+      latencyMs = Date.now() - startMs;
+      errorMsg = err instanceof Error ? err.message : String(err);
+    }
+
+    // Phase 3: Update status in new short TX
+    await this.prisma.$transaction(
+      async (tx) => {
+        const current = await this.outboxRepo.lockById(eventId, tx);
+        if (!current) return;
+
+        if (deliverySuccess) {
+          await this.outboxRepo.markSent(event.id, tx);
+          recordOutboxEvent(event.event_type, 'sent');
+          recordOutboxDelivery(targetUrl, latencyMs);
+          this.logger.log({
+            msg: 'Event delivered',
+            eventId: event.id,
+            eventType: event.event_type,
+            target: targetUrl,
+            attempt: event.try_count + 1,
+            latencyMs,
+            traceId: event.trace_id,
           });
-
-          clearTimeout(timeout);
-          const latencyMs = Date.now() - startMs;
-
-          if (response.ok) {
-            await this.outboxRepo.markSent(event.id, tx);
-            recordOutboxEvent(event.event_type, 'sent');
-            recordOutboxDelivery(targetUrl, latencyMs);
-            this.logger.log({
-              msg: 'Event delivered',
-              eventId: event.id,
-              eventType: event.event_type,
-              target: targetUrl,
-              attempt: event.try_count + 1,
-              latencyMs,
-              traceId: event.trace_id,
-            });
-          } else {
-            const responseText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${responseText}`);
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+        } else {
           const nextTry = event.try_count + 1;
           recordOutboxDeliveryError(targetUrl);
 
@@ -149,7 +184,7 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
           }
         }
       },
-      { timeout: env.OUTBOX_DELIVERY_TIMEOUT_MS + 5000 },
+      { timeout: 5000 },
     );
   }
 

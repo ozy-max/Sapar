@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuditLog } from '@prisma/client';
+import { AuditLog, Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 
 export interface CreateAuditLogInput {
@@ -16,8 +16,9 @@ export interface CreateAuditLogInput {
 export class AuditLogRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateAuditLogInput): Promise<AuditLog> {
-    return this.prisma.auditLog.create({
+  async create(data: CreateAuditLogInput, tx?: Prisma.TransactionClient): Promise<AuditLog> {
+    const client = tx ?? this.prisma;
+    return client.auditLog.create({
       data: {
         actorUserId: data.actorUserId,
         actorRoles: data.actorRoles,

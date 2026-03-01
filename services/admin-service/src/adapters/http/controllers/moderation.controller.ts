@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Controller,
   Post,
@@ -7,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -37,6 +39,7 @@ import {
   ModerationCommandResponseDto,
 } from '../dto/moderation.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
+import { ForbiddenError } from '../../../shared/errors';
 
 @ApiTags('moderation')
 @Controller('moderation')
@@ -58,12 +61,16 @@ export class ModerationController {
   @ApiResponse({ status: 201, type: ModerationCommandResponseDto })
   @ApiResponse({ status: 403, type: ErrorResponseDto })
   async ban(
-    @Param('userId') userId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
     @Body(new ZodValidationPipe(banUserSchema)) input: BanUserInput,
     @CurrentUser() actorId: string,
     @CurrentUserRoles() roles: string[],
-    @Headers('x-request-id') traceId: string,
+    @Headers('x-request-id') rawTraceId: string | undefined,
   ): Promise<ModerationCommandResponseDto> {
+    const traceId = rawTraceId || randomUUID();
+    if (userId === actorId) {
+      throw new ForbiddenError('Cannot ban yourself');
+    }
     return this.banUser.execute({
       userId,
       reason: input.reason,
@@ -83,12 +90,13 @@ export class ModerationController {
   @ApiResponse({ status: 201, type: ModerationCommandResponseDto })
   @ApiResponse({ status: 403, type: ErrorResponseDto })
   async unban(
-    @Param('userId') userId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
     @Body(new ZodValidationPipe(unbanUserSchema)) input: UnbanUserInput,
     @CurrentUser() actorId: string,
     @CurrentUserRoles() roles: string[],
-    @Headers('x-request-id') traceId: string,
+    @Headers('x-request-id') rawTraceId: string | undefined,
   ): Promise<ModerationCommandResponseDto> {
+    const traceId = rawTraceId || randomUUID();
     return this.unbanUser.execute({
       userId,
       reason: input.reason,
@@ -107,12 +115,13 @@ export class ModerationController {
   @ApiResponse({ status: 201, type: ModerationCommandResponseDto })
   @ApiResponse({ status: 403, type: ErrorResponseDto })
   async cancel(
-    @Param('tripId') tripId: string,
+    @Param('tripId', new ParseUUIDPipe()) tripId: string,
     @Body(new ZodValidationPipe(cancelTripSchema)) input: CancelTripInput,
     @CurrentUser() actorId: string,
     @CurrentUserRoles() roles: string[],
-    @Headers('x-request-id') traceId: string,
+    @Headers('x-request-id') rawTraceId: string | undefined,
   ): Promise<ModerationCommandResponseDto> {
+    const traceId = rawTraceId || randomUUID();
     return this.cancelTrip.execute({
       tripId,
       reason: input.reason,

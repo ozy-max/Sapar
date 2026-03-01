@@ -91,7 +91,7 @@ describe('Outbox + Consumer E2E — notifications-service', () => {
     const notifications = await prisma.notification.findMany();
     expect(notifications).toHaveLength(1);
     expect(notifications[0]!.status).toBe('PENDING');
-    expect(notifications[0]!.templateKey).toBe('payment_hold_placed');
+    expect(notifications[0]!.templateKey).toBe('PAYMENT_HOLD_PLACED');
     expect(notifications[0]!.channel).toBe('PUSH');
   });
 

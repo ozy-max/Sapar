@@ -24,12 +24,14 @@ export class WebhooksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Handle PSP webhook callback' })
   @ApiHeader({ name: 'x-webhook-signature', required: true })
+  @ApiHeader({ name: 'x-webhook-timestamp', required: false })
   @ApiResponse({ status: 204, description: 'Webhook processed' })
   @ApiResponse({ status: 401, description: 'Invalid signature' })
   async psp(
     @Body(new ZodValidationPipe(webhookSchema)) _body: WebhookInput,
     @Req() req: RawBodyRequest<Request>,
     @Headers('x-webhook-signature') signature?: string,
+    @Headers('x-webhook-timestamp') timestamp?: string,
   ): Promise<void> {
     if (!signature) {
       throw new WebhookSignatureInvalidError();
@@ -40,7 +42,7 @@ export class WebhooksController {
       throw new WebhookSignatureInvalidError();
     }
 
-    this.handleWebhook.verifySignature(rawBody, signature);
+    this.handleWebhook.verifySignature(rawBody, signature, timestamp);
 
     const payload = req.body as WebhookInput;
     await this.handleWebhook.execute({

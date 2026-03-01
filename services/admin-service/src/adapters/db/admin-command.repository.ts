@@ -6,14 +6,18 @@ import { PrismaService } from './prisma.service';
 export class AdminCommandRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: {
-    targetService: string;
-    type: AdminCommandType;
-    payload: unknown;
-    createdBy: string;
-    traceId: string;
-  }): Promise<AdminCommand> {
-    return this.prisma.adminCommand.create({
+  async create(
+    data: {
+      targetService: string;
+      type: AdminCommandType;
+      payload: unknown;
+      createdBy: string;
+      traceId: string;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<AdminCommand> {
+    const client = tx ?? this.prisma;
+    return client.adminCommand.create({
       data: {
         targetService: data.targetService,
         type: data.type,

@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { EventHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
 import { OutboxService } from '../../shared/outbox.service';
@@ -7,6 +8,7 @@ import { PSP_ADAPTER, PspAdapter } from '../../adapters/psp/psp.interface';
 import { withTimeout } from '../../shared/psp-timeout';
 import { loadEnv } from '../../config/env';
 import { recordSagaOutcome } from '../../observability/saga-metrics';
+import { DataCorruptionError } from '../../shared/errors';
 
 interface PaymentIntentRow {
   id: string;
@@ -18,11 +20,11 @@ interface PaymentIntentRow {
   psp_intent_id: string | null;
 }
 
-interface BookingConfirmedPayload {
-  bookingId: string;
-  tripId: string;
-  passengerId: string;
-}
+const bookingConfirmedPayloadSchema = z.object({
+  bookingId: z.string().uuid(),
+  tripId: z.string().uuid(),
+  passengerId: z.string().uuid(),
+});
 
 @Injectable()
 export class OnBookingConfirmedHandler implements EventHandler {
@@ -35,7 +37,17 @@ export class OnBookingConfirmedHandler implements EventHandler {
   ) {}
 
   async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
-    const p = event.payload as unknown as BookingConfirmedPayload;
+    const parsed = bookingConfirmedPayloadSchema.safeParse(event.payload);
+    if (!parsed.success) {
+      this.logger.warn({
+        msg: 'Invalid booking.confirmed payload',
+        errors: parsed.error.flatten().fieldErrors,
+        eventId: event.eventId,
+        traceId: event.traceId,
+      });
+      return;
+    }
+    const p = parsed.data;
 
     const intents = await tx.$queryRaw<PaymentIntentRow[]>`
       SELECT id, booking_id, payer_id, amount_kgs, currency, status, psp_intent_id
@@ -66,9 +78,13 @@ export class OnBookingConfirmedHandler implements EventHandler {
       return;
     }
 
+    if (!row.psp_intent_id) {
+      throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+    }
+
     const env = loadEnv();
     try {
-      await withTimeout(this.psp.capture(row.psp_intent_id!), env.PSP_TIMEOUT_MS);
+      await withTimeout(this.psp.capture(row.psp_intent_id), env.PSP_TIMEOUT_MS);
     } catch (error) {
       this.logger.error({
         msg: 'PSP capture failed, will retry via event re-delivery',

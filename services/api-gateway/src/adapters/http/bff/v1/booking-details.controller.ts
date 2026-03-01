@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Headers, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Headers,
+  HttpException,
+  HttpStatus,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { handleBookingDetails } from './booking-details.handler';
 import { BookingDetailsResponseDto, BffErrorDto } from '../dto/bff.dto';
@@ -16,10 +24,13 @@ export class BookingDetailsController {
   @ApiResponse({ status: 502, type: BffErrorDto })
   @ApiResponse({ status: 504, type: BffErrorDto })
   async getDetails(
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
     @Headers('x-request-id') traceId?: string,
     @Headers('authorization') authorization?: string,
   ): Promise<BookingDetailsResponseDto> {
+    // Gateway-level Bearer presence check only.
+    // JWT signature verification is performed by downstream services.
+    // This check prevents clearly unauthenticated requests from reaching downstream.
     if (!authorization?.startsWith('Bearer ')) {
       throw new HttpException(
         { code: 'UNAUTHORIZED', message: 'Authentication required' },

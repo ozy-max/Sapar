@@ -68,16 +68,12 @@ describe('Rate Limiter Fail-Open (/identity, /trips)', () => {
   });
 
   it('/identity requests pass through when Redis is down (fail-open)', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/identity/ping')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/identity/ping').expect(200);
     expect(res.body).toEqual({ ok: true });
   });
 
   it('/trips requests pass through when Redis is down (fail-open)', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/trips/search')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/trips/search').expect(200);
     expect(res.body).toEqual({ ok: true });
   });
 

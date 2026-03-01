@@ -95,4 +95,18 @@ export class PaymentIntentRepository {
       where: { pspIntentId },
     });
   }
+
+  async findStuckIntents(
+    staleMinutes: number,
+    limit: number,
+  ): Promise<Array<{ id: string; status: string; psp_intent_id: string | null; created_at: Date }>> {
+    return this.prisma.$queryRaw`
+      SELECT id, status, psp_intent_id, created_at
+      FROM payment_intents
+      WHERE status IN ('CREATED', 'HOLD_PLACED')
+        AND updated_at < NOW() - INTERVAL '1 minute' * ${staleMinutes}
+      ORDER BY updated_at ASC
+      LIMIT ${limit}
+    `;
+  }
 }

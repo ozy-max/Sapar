@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigType } from '@prisma/client';
-import { ConfigRepository } from '../adapters/db/config.repository';
-import { AuditLogRepository } from '../adapters/db/audit-log.repository';
+import { PrismaService } from '../adapters/db/prisma.service';
 
 interface UpsertConfigInput {
   key: string;
@@ -26,28 +25,45 @@ interface ConfigOutput {
 export class UpsertConfigUseCase {
   private readonly logger = new Logger(UpsertConfigUseCase.name);
 
-  constructor(
-    private readonly configRepo: ConfigRepository,
-    private readonly auditLogRepo: AuditLogRepository,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async execute(input: UpsertConfigInput): Promise<ConfigOutput> {
-    const config = await this.configRepo.upsert({
-      key: input.key,
-      type: input.type as ConfigType,
-      valueJson: input.value,
-      description: input.description,
-      scope: input.scope,
-    });
+    const config = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.config.findUnique({ where: { key: input.key } });
+      const nextVersion = (existing?.version ?? 0) + 1;
 
-    await this.auditLogRepo.create({
-      actorUserId: input.actorUserId,
-      actorRoles: input.actorRoles,
-      action: 'CONFIG_UPSERT',
-      targetType: 'Config',
-      targetId: input.key,
-      payloadJson: { type: input.type, value: input.value, description: input.description, scope: input.scope },
-      traceId: input.traceId,
+      const upserted = await tx.config.upsert({
+        where: { key: input.key },
+        update: {
+          type: input.type as ConfigType,
+          valueJson: input.value as never,
+          description: input.description,
+          scope: input.scope,
+          version: nextVersion,
+        },
+        create: {
+          key: input.key,
+          type: input.type as ConfigType,
+          valueJson: input.value as never,
+          description: input.description,
+          scope: input.scope,
+          version: 1,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: input.actorUserId,
+          actorRoles: input.actorRoles,
+          action: 'CONFIG_UPSERT',
+          targetType: 'Config',
+          targetId: input.key,
+          payloadJson: { type: input.type, value: input.value, description: input.description, scope: input.scope } as never,
+          traceId: input.traceId,
+        },
+      });
+
+      return upserted;
     });
 
     this.logger.log(`Config upserted: key=${input.key} by=${input.actorUserId}`);

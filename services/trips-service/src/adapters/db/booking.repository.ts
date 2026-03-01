@@ -46,13 +46,15 @@ export class BookingRepository {
     return rows[0] ?? null;
   }
 
-  async findExpiredPendingIds(cutoff: Date, limit = 50): Promise<string[]> {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+  async findExpiredPendingIds(cutoff: Date, limit = 50, tx?: Prisma.TransactionClient): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM bookings
       WHERE status = 'PENDING_PAYMENT'::"BookingStatus"
         AND created_at <= ${cutoff}
       ORDER BY created_at
       LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
     `;
     return rows.map((r) => r.id);
   }

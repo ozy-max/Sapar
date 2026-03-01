@@ -8,6 +8,7 @@ const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long!!';
 const HMAC_SECRET = 'test-hmac-secret-at-least-32-characters-long!!';
 const DRIVER_ID = '00000000-0000-4000-a000-000000000001';
 const PASSENGER_A = '00000000-0000-4000-a000-000000000002';
+const PASSENGER_B = '00000000-0000-4000-a000-000000000003';
 
 function auth(userId: string): string {
   const token = jwt.sign({ sub: userId, email: `${userId}@test.com` }, JWT_SECRET, { expiresIn: 3600 });
@@ -121,7 +122,60 @@ describe('Outbox E2E — trips-service', () => {
     expect(events[0]!.traceId).toBe('trace-trip-cancel');
   });
 
-  // ─── 4) Worker marks SENT when no target ───
+  // ─── 4) Cancel trip with 2 bookings → booking.cancelled for each ───
+  it('should emit booking.cancelled for every active booking when trip is cancelled', async () => {
+    const created = await request(ctx.app.getHttpServer())
+      .post('/')
+      .set('Authorization', auth(DRIVER_ID))
+      .send(tripBody)
+      .expect(201);
+
+    const tripId = created.body.tripId;
+
+    const bookA = await request(ctx.app.getHttpServer())
+      .post(`/${tripId}/book`)
+      .set('Authorization', auth(PASSENGER_A))
+      .send({ seats: 1 })
+      .expect(201);
+
+    const bookB = await request(ctx.app.getHttpServer())
+      .post(`/${tripId}/book`)
+      .set('Authorization', auth(PASSENGER_B))
+      .send({ seats: 1 })
+      .expect(201);
+
+    await request(ctx.app.getHttpServer())
+      .post(`/${tripId}/cancel`)
+      .set('Authorization', auth(DRIVER_ID))
+      .expect(200);
+
+    const cancelledEvents = await ctx.prisma.outboxEvent.findMany({
+      where: { eventType: 'booking.cancelled' },
+      orderBy: { occurredAt: 'asc' },
+    });
+
+    expect(cancelledEvents).toHaveLength(2);
+
+    const payloads = cancelledEvents.map(
+      (e) => e.payloadJson as Record<string, unknown>,
+    );
+    const bookingIds = payloads.map((p) => p['bookingId']).sort();
+    expect(bookingIds).toEqual(
+      [bookA.body.bookingId, bookB.body.bookingId].sort(),
+    );
+
+    for (const payload of payloads) {
+      expect(payload['tripId']).toBe(tripId);
+      expect(payload['reason']).toBe('TRIP_CANCELLED');
+    }
+
+    const tripCancelledEvents = await ctx.prisma.outboxEvent.findMany({
+      where: { eventType: 'trip.cancelled' },
+    });
+    expect(tripCancelledEvents).toHaveLength(1);
+  });
+
+  // ─── 5) Worker marks SENT when no target configured ───
   it('should mark event as SENT when no delivery target configured', async () => {
     const created = await request(ctx.app.getHttpServer())
       .post('/')
@@ -145,7 +199,7 @@ describe('Outbox E2E — trips-service', () => {
     expect(events[0]!.status).toBe('SENT');
   });
 
-  // ─── 5) traceId propagation ───
+  // ─── 6) traceId propagation ───
   it('should preserve traceId from x-request-id in outbox events', async () => {
     const customTraceId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 

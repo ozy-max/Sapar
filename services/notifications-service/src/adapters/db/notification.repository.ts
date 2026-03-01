@@ -81,15 +81,14 @@ export class NotificationRepository {
   }
 
   async findDueIds(): Promise<string[]> {
-    const rows = await this.prisma.notification.findMany({
-      where: {
-        status: { in: ['PENDING', 'FAILED_RETRY'] },
-        nextRetryAt: { lte: new Date() },
-      },
-      select: { id: true },
-      orderBy: { nextRetryAt: 'asc' },
-      take: 50,
-    });
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM notifications
+      WHERE status IN ('PENDING', 'FAILED_RETRY')
+        AND next_retry_at <= NOW()
+      ORDER BY next_retry_at ASC
+      LIMIT 50
+      FOR UPDATE SKIP LOCKED
+    `;
     return rows.map((r) => r.id);
   }
 

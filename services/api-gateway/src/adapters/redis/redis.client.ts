@@ -29,6 +29,10 @@ export function getRedisClient(url: string): Redis {
   return instance;
 }
 
+export function getRedisInstance(): Redis | undefined {
+  return instance;
+}
+
 export async function closeRedisClient(): Promise<void> {
   if (!instance) return;
   try {

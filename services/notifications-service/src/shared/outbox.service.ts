@@ -1,3 +1,9 @@
+/**
+ * SHARED CODE — duplicated across services.
+ * Canonical source: services/trips-service/src/shared/outbox.service.ts
+ * TODO: Extract to @sapar/shared package when monorepo tooling is set up.
+ * Any changes must be applied to all copies.
+ */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';

@@ -16,6 +16,7 @@ interface AdminCommandItem {
 export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AdminCommandWorker.name);
   private intervalHandle?: ReturnType<typeof setInterval>;
+  private currentTick?: Promise<void>;
   private running = false;
 
   constructor(
@@ -30,14 +31,17 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
     this.logger.log(`Starting AdminCommandWorker, poll interval: ${env.COMMAND_POLL_INTERVAL_MS}ms`);
-    this.intervalHandle = setInterval(() => void this.tick(), env.COMMAND_POLL_INTERVAL_MS);
+    this.intervalHandle = setInterval(() => {
+      this.currentTick = this.tick();
+    }, env.COMMAND_POLL_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = undefined;
     }
+    if (this.currentTick) await this.currentTick;
   }
 
   async tick(): Promise<void> {
@@ -117,6 +121,11 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.log({ msg: 'Command processed', commandId: cmd.id, type: cmd.type, status: ackStatus, durationMs, traceId: cmd.traceId });
   }
 
+  /**
+   * Admin-initiated cancellation — no ownership check, allows any non-terminal status,
+   * emits adminCancelled flag. Intentionally separate from CancelTripUseCase which
+   * enforces driver ownership and stricter status checks.
+   */
   private async cancelTrip(tripId: string, reason: string, traceId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const trips = await tx.$queryRaw<Array<{ id: string; status: string }>>`
@@ -139,6 +148,14 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
         data: { status: TripStatus.CANCELLED },
       });
 
+      const bookingsToCancel = await tx.booking.findMany({
+        where: {
+          tripId,
+          status: { in: ['PENDING_PAYMENT', 'CONFIRMED'] },
+        },
+        select: { id: true, passengerId: true, seats: true, status: true },
+      });
+
       await tx.booking.updateMany({
         where: {
           tripId,
@@ -146,6 +163,23 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
         },
         data: { status: 'CANCELLED' },
       });
+
+      for (const booking of bookingsToCancel) {
+        await this.outboxService.publish(
+          {
+            eventType: 'booking.cancelled',
+            payload: {
+              bookingId: booking.id,
+              tripId,
+              passengerId: booking.passengerId,
+              seats: booking.seats,
+              reason: 'ADMIN_CANCELLED',
+            },
+            traceId,
+          },
+          tx,
+        );
+      }
 
       await this.outboxService.publish(
         {
@@ -155,7 +189,7 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
         },
         tx,
       );
-    });
+    }, { timeout: 15_000 });
   }
 
   private async ackCommand(

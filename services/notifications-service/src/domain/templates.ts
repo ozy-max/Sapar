@@ -48,7 +48,7 @@ export function getTemplate(
 
 export function renderTemplate(template: string, payload: Record<string, unknown>): string {
   return template.replace(/\{\{(\w+)}}/g, (_match, key: string) => {
-    const value = payload[key];
+    const value = Object.prototype.hasOwnProperty.call(payload, key) ? payload[key] : undefined;
     return value !== undefined && value !== null ? String(value) : '';
   });
 }

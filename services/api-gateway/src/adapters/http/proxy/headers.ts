@@ -5,6 +5,7 @@ const FORWARDED_REQUEST_HEADERS: ReadonlySet<string> = new Set([
   'authorization',
   'content-type',
   'accept',
+  'idempotency-key',
 ]);
 
 const ALLOWED_RESPONSE_HEADERS: ReadonlySet<string> = new Set([
@@ -27,9 +28,7 @@ const HOP_BY_HOP: ReadonlySet<string> = new Set([
   'proxy-authenticate',
 ]);
 
-export function pickRequestHeaders(
-  incoming: IncomingHttpHeaders,
-): Record<string, string> {
+export function pickRequestHeaders(incoming: IncomingHttpHeaders): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of FORWARDED_REQUEST_HEADERS) {
     const value = incoming[key];
@@ -42,9 +41,7 @@ export function pickRequestHeaders(
 
 export type HeadersRecord = Record<string, string | string[] | undefined>;
 
-export function pickResponseHeaders(
-  downstream: HeadersRecord,
-): Record<string, string> {
+export function pickResponseHeaders(downstream: HeadersRecord): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(downstream)) {
     const lower = key.toLowerCase();

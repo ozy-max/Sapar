@@ -221,7 +221,61 @@ describe('Notifications (e2e)', () => {
     });
   });
 
-  // 7) traceId equals x-request-id for errors
+  // 7) ownership checks — cross-user access denied
+  describe('Ownership checks', () => {
+    const userBId = randomUUID();
+    let tokenB: string;
+
+    beforeAll(() => {
+      tokenB = signToken(userBId);
+    });
+
+    it('should return 404 when another user tries to GET notification', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          userId,
+          channel: 'EMAIL',
+          templateKey: 'BOOKING_CONFIRMED',
+          payload: { bookingId: 'b-own-1', route: 'Bishkek → Osh', date: '2026-04-10', userName: 'Test' },
+        })
+        .expect(201);
+
+      const notifId = res.body.notificationId as string;
+
+      const getRes = await request(app.getHttpServer())
+        .get(`/notifications/${notifId}`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(404);
+
+      expect(getRes.body.code).toBe('NOTIFICATION_NOT_FOUND');
+    });
+
+    it('should return 404 when another user tries to cancel notification', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          userId,
+          channel: 'EMAIL',
+          templateKey: 'BOOKING_CONFIRMED',
+          payload: { bookingId: 'b-own-2', route: 'Bishkek → Osh', date: '2026-04-11', userName: 'Test' },
+        })
+        .expect(201);
+
+      const notifId = res.body.notificationId as string;
+
+      const cancelRes = await request(app.getHttpServer())
+        .post(`/notifications/${notifId}/cancel`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(404);
+
+      expect(cancelRes.body.code).toBe('NOTIFICATION_NOT_FOUND');
+    });
+  });
+
+  // 8) traceId equals x-request-id for errors
   describe('traceId propagation', () => {
     it('should return traceId matching x-request-id header on errors', async () => {
       const traceId = randomUUID();

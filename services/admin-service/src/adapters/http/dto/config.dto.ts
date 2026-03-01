@@ -84,9 +84,9 @@ export class ConfigResponseDto {
   @ApiProperty({ example: 3 })
   value!: unknown;
 
-  @ApiPropertyOptional({ example: 'Maximum receipt retry count' })
-  description?: string;
+  @ApiPropertyOptional({ example: 'Maximum receipt retry count', nullable: true })
+  description!: string | null;
 
-  @ApiPropertyOptional({ example: 'global' })
-  scope?: string;
+  @ApiPropertyOptional({ example: 'global', nullable: true })
+  scope!: string | null;
 }

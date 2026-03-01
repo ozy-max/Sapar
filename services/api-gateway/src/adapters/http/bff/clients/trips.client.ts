@@ -117,7 +117,7 @@ export async function getTripDetail(
 ): Promise<BffResponse<TripDetailDownstream>> {
   return bffFetch<TripDetailDownstream>('trips', {
     baseUrl: tripsBaseUrl(),
-    path: `/bff/trips/${tripId}`,
+    path: `/bff/trips/${encodeURIComponent(tripId)}`,
     timeoutMs: timeoutMs(),
     headers,
   });
@@ -129,7 +129,7 @@ export async function getBookingDetail(
 ): Promise<BffResponse<BookingDetailDownstream>> {
   return bffFetch<BookingDetailDownstream>('trips', {
     baseUrl: tripsBaseUrl(),
-    path: `/bff/bookings/${bookingId}`,
+    path: `/bff/bookings/${encodeURIComponent(bookingId)}`,
     timeoutMs: timeoutMs(),
     headers,
   });

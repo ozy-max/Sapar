@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ApiProperty } from '@nestjs/swagger';
 
 export const assignRolesSchema = z.object({
-  roles: z.array(z.string().min(1)).min(0),
+  roles: z.array(z.enum(['ADMIN', 'OPS', 'SUPPORT', 'DRIVER', 'PASSENGER'])).min(0),
 });
 
 export type AssignRolesInput = z.infer<typeof assignRolesSchema>;

@@ -20,7 +20,10 @@ export class HealthController {
   @ApiResponse({ status: 503, description: 'Database is not reachable' })
   async ready(): Promise<{ status: string }> {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
+      await Promise.race([
+        this.prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('DB timeout')), 3000)),
+      ]);
       return { status: 'ok' };
     } catch {
       throw new HttpException(

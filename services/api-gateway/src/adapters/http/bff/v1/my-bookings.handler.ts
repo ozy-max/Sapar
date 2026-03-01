@@ -12,9 +12,7 @@ interface MyBookingsInput {
   traceId: string;
 }
 
-export async function handleMyBookings(
-  input: MyBookingsInput,
-): Promise<MyBookingsResponseDto> {
+export async function handleMyBookings(input: MyBookingsInput): Promise<MyBookingsResponseDto> {
   try {
     const bookingsResp = await getMyBookings(
       { status: input.status, limit: input.limit, offset: input.offset },
@@ -22,7 +20,7 @@ export async function handleMyBookings(
     );
 
     const bookings = bookingsResp.data;
-    const bookingIds = bookings.items.map((b) => b.bookingId);
+    const bookingIds = bookings.items.map((b) => b.bookingId).slice(0, 50);
 
     let paymentMap = new Map<string, PaymentSummary>();
     if (bookingIds.length > 0) {

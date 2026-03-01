@@ -23,6 +23,7 @@ const envSchema = z
 
     RECEIPT_RETRY_N: z.coerce.number().int().positive().default(3),
     RECEIPT_BACKOFF_SEC_LIST: z.string().default('5,30,300'),
+    RECEIPT_BATCH_SIZE: z.coerce.number().int().positive().default(10),
     RECEIPT_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
 
     OUTBOX_WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
@@ -31,6 +32,10 @@ const envSchema = z
     OUTBOX_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
     EVENTS_HMAC_SECRET: z.string().min(1).default('hmac-secret-for-dev-at-least-32-chars!!'),
     OUTBOX_TARGETS: z.string().default(''),
+
+    RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
+    RECONCILIATION_STALE_MINUTES: z.coerce.number().int().positive().default(10),
+    RECONCILIATION_BATCH_SIZE: z.coerce.number().int().positive().default(20),
 
     CONFIG_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
     CONFIG_CACHE_TTL_MS: z.coerce.number().int().positive().default(30000),
@@ -96,12 +101,24 @@ export function resetEnvCache(): void {
 
 export function getBackoffSchedule(): number[] {
   const env = loadEnv();
-  return env.RECEIPT_BACKOFF_SEC_LIST.split(',').map((s) => parseInt(s.trim(), 10));
+  const values = env.RECEIPT_BACKOFF_SEC_LIST.split(',').map((s) => {
+    const n = parseInt(s.trim(), 10);
+    if (isNaN(n) || n < 0) throw new Error(`Invalid RECEIPT_BACKOFF_SEC_LIST value: '${s.trim()}'`);
+    return n;
+  });
+  if (values.length === 0) throw new Error('RECEIPT_BACKOFF_SEC_LIST must contain at least one value');
+  return values;
 }
 
 export function getOutboxBackoffSchedule(): number[] {
   const env = loadEnv();
-  return env.OUTBOX_BACKOFF_SEC_LIST.split(',').map((s) => parseInt(s.trim(), 10));
+  const values = env.OUTBOX_BACKOFF_SEC_LIST.split(',').map((s) => {
+    const n = parseInt(s.trim(), 10);
+    if (isNaN(n) || n < 0) throw new Error(`Invalid OUTBOX_BACKOFF_SEC_LIST value: '${s.trim()}'`);
+    return n;
+  });
+  if (values.length === 0) throw new Error('OUTBOX_BACKOFF_SEC_LIST must contain at least one value');
+  return values;
 }
 
 export function parseOutboxTargets(raw: string): Map<string, string> {

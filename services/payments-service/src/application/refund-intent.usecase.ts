@@ -10,6 +10,8 @@ import {
   PaymentIntentNotFoundError,
   InvalidPaymentStateError,
   PspUnavailableError,
+  ForbiddenPaymentError,
+  DataCorruptionError,
 } from '../shared/errors';
 
 @Injectable()
@@ -24,13 +26,14 @@ export class RefundIntentUseCase {
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async execute(intentId: string, traceId = ''): Promise<{ status: string }> {
+  async execute(intentId: string, userId: string, traceId = ''): Promise<{ status: string }> {
     const env = loadEnv();
 
     return this.prisma.$transaction(
       async (tx) => {
         const row = await this.intentRepo.findByIdForUpdate(intentId, tx);
         if (!row) throw new PaymentIntentNotFoundError();
+        if (row.payer_id !== userId) throw new ForbiddenPaymentError();
 
         if (row.status !== 'CAPTURED') {
           throw new InvalidPaymentStateError(
@@ -38,9 +41,13 @@ export class RefundIntentUseCase {
           );
         }
 
+        if (!row.psp_intent_id) {
+          throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+        }
+
         try {
           await withTimeout(
-            this.psp.refund(row.psp_intent_id!, row.amount_kgs),
+            this.psp.refund(row.psp_intent_id, row.amount_kgs),
             env.PSP_TIMEOUT_MS,
           );
         } catch (error) {
@@ -74,7 +81,7 @@ export class RefundIntentUseCase {
 
         return { status: 'REFUNDED' };
       },
-      { timeout: env.PSP_TIMEOUT_MS + 3000 },
+      { timeout: env.PSP_TIMEOUT_MS + 5000 },
     );
   }
 }

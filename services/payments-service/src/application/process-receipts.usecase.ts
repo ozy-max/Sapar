@@ -29,7 +29,7 @@ export class ProcessReceiptsUseCase {
     const maxRetries = env.RECEIPT_RETRY_N;
     const result: ReceiptProcessResult = { total: 0, issued: 0, retried: 0, failedFinal: 0 };
 
-    const dueIds = await this.receiptRepo.findDueIds();
+    const dueIds = await this.receiptRepo.findDueIds(env.RECEIPT_BATCH_SIZE);
 
     for (const receiptId of dueIds) {
       try {

@@ -3,6 +3,7 @@ import { UserRepository } from '../adapters/db/user.repository';
 import { RefreshTokenRepository } from '../adapters/db/refresh-token.repository';
 import { CryptoService } from '../shared/crypto.service';
 import { JwtTokenService } from '../shared/jwt.service';
+import { PrismaService } from '../adapters/db/prisma.service';
 import { InvalidCredentialsError, AccountBannedError } from '../shared/errors';
 import { loadEnv } from '../config/env';
 
@@ -22,6 +23,7 @@ export class LoginUserUseCase {
   private readonly logger = new Logger(LoginUserUseCase.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly userRepo: UserRepository,
     private readonly refreshTokenRepo: RefreshTokenRepository,
     private readonly crypto: CryptoService,
@@ -46,8 +48,6 @@ export class LoginUserUseCase {
       throw new AccountBannedError(user.bannedUntil);
     }
 
-    await this.refreshTokenRepo.revokeAllByUserId(user.id);
-
     const { token: accessToken, expiresInSec } = this.jwt.signAccessToken({
       sub: user.id,
       email: user.email,
@@ -58,10 +58,16 @@ export class LoginUserUseCase {
     const rawRefreshToken = this.crypto.generateOpaqueToken();
     const tokenHash = this.crypto.hashToken(rawRefreshToken);
 
-    await this.refreshTokenRepo.create({
-      userId: user.id,
-      tokenHash,
-      expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_TTL_SEC * 1000),
+    await this.prisma.$transaction(async (tx) => {
+      await this.refreshTokenRepo.revokeAllByUserId(user.id, tx);
+      await this.refreshTokenRepo.create(
+        {
+          userId: user.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_TTL_SEC * 1000),
+        },
+        tx,
+      );
     });
 
     this.logger.log(`User logged in: userId=${user.id}`);

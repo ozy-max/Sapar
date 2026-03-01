@@ -61,3 +61,15 @@ export class WebhookSignatureInvalidError extends AppError {
     super('WEBHOOK_SIGNATURE_INVALID', 401, 'Invalid webhook signature');
   }
 }
+
+export class ForbiddenPaymentError extends AppError {
+  constructor() {
+    super('FORBIDDEN', 403, 'You are not authorized to perform this action on this payment');
+  }
+}
+
+export class DataCorruptionError extends AppError {
+  constructor(detail: string) {
+    super('DATA_CORRUPTION', 500, `Data integrity error: ${detail}`);
+  }
+}

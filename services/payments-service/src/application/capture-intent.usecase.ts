@@ -11,6 +11,8 @@ import {
   PaymentIntentNotFoundError,
   InvalidPaymentStateError,
   PspUnavailableError,
+  ForbiddenPaymentError,
+  DataCorruptionError,
 } from '../shared/errors';
 
 @Injectable()
@@ -26,21 +28,26 @@ export class CaptureIntentUseCase {
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async execute(intentId: string, traceId = ''): Promise<{ status: string }> {
+  async execute(intentId: string, userId: string, traceId = ''): Promise<{ status: string }> {
     const env = loadEnv();
 
     return this.prisma.$transaction(
       async (tx) => {
         const row = await this.intentRepo.findByIdForUpdate(intentId, tx);
         if (!row) throw new PaymentIntentNotFoundError();
+        if (row.payer_id !== userId) throw new ForbiddenPaymentError();
         if (row.status !== 'HOLD_PLACED') {
           throw new InvalidPaymentStateError(
             `Cannot capture: current status is ${row.status}`,
           );
         }
 
+        if (!row.psp_intent_id) {
+          throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+        }
+
         try {
-          await withTimeout(this.psp.capture(row.psp_intent_id!), env.PSP_TIMEOUT_MS);
+          await withTimeout(this.psp.capture(row.psp_intent_id), env.PSP_TIMEOUT_MS);
         } catch (error) {
           this.logger.error(error, 'PSP capture failed');
           throw new PspUnavailableError();
@@ -74,7 +81,7 @@ export class CaptureIntentUseCase {
 
         return { status: 'CAPTURED' };
       },
-      { timeout: env.PSP_TIMEOUT_MS + 3000 },
+      { timeout: env.PSP_TIMEOUT_MS + 5000 },
     );
   }
 }

@@ -1,18 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { Dispute, DisputeType, DisputeStatus, DisputeResolution } from '@prisma/client';
+import { Dispute, DisputeType, DisputeStatus, DisputeResolution, Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 
 @Injectable()
 export class DisputeRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: {
-    type: DisputeType;
-    bookingId: string;
-    departAt: Date;
-    evidenceUrls: string[];
-  }): Promise<Dispute> {
-    return this.prisma.dispute.create({ data });
+  async create(
+    data: {
+      type: DisputeType;
+      bookingId: string;
+      departAt: Date;
+      evidenceUrls: string[];
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<Dispute> {
+    const client = tx ?? this.prisma;
+    return client.dispute.create({ data });
   }
 
   async findById(id: string): Promise<Dispute | null> {

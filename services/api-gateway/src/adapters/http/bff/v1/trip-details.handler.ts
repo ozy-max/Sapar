@@ -8,9 +8,7 @@ interface TripDetailsInput {
   traceId: string;
 }
 
-export async function handleTripDetails(
-  input: TripDetailsInput,
-): Promise<TripDetailsResponseDto> {
+export async function handleTripDetails(input: TripDetailsInput): Promise<TripDetailsResponseDto> {
   try {
     const resp = await getTripDetail(input.tripId, input.headers);
     const t = resp.data;

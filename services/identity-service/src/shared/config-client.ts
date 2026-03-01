@@ -23,6 +23,7 @@ export class ConfigClient implements OnModuleInit {
     lastEtag: null,
     lastFetchAt: 0,
   };
+  private refreshing = false;
 
   async onModuleInit(): Promise<void> {
     const env = loadEnv();
@@ -48,10 +49,15 @@ export class ConfigClient implements OnModuleInit {
   private refreshIfStale(): void {
     const env = loadEnv();
     const age = Date.now() - this.snapshot.lastFetchAt;
-    if (age > env.CONFIG_CACHE_TTL_MS) {
-      void this.refresh().catch((err) => {
-        this.logger.warn(`Background config refresh failed: ${err instanceof Error ? err.message : String(err)}`);
-      });
+    if (age > env.CONFIG_CACHE_TTL_MS && !this.refreshing) {
+      this.refreshing = true;
+      void this.refresh()
+        .catch((err) => {
+          this.logger.warn(`Background config refresh failed: ${String(err)}`);
+        })
+        .finally(() => {
+          this.refreshing = false;
+        });
     }
   }
 

@@ -33,15 +33,27 @@ export class SearchTripsUseCase {
   constructor(private readonly tripRepo: TripRepository) {}
 
   async execute(input: SearchTripsInput): Promise<SearchTripsOutput> {
-    const trips = await this.tripRepo.search({
-      fromCity: input.fromCity,
-      toCity: input.toCity,
-      dateFrom: input.dateFrom ? new Date(input.dateFrom) : undefined,
-      dateTo: input.dateTo ? new Date(input.dateTo) : undefined,
-      minSeats: input.minSeats,
-      limit: input.limit,
-      offset: input.offset,
-    });
+    const dateFrom = input.dateFrom ? new Date(input.dateFrom) : undefined;
+    const dateTo = input.dateTo ? new Date(input.dateTo) : undefined;
+
+    const [trips, totalCount] = await Promise.all([
+      this.tripRepo.search({
+        fromCity: input.fromCity,
+        toCity: input.toCity,
+        dateFrom,
+        dateTo,
+        minSeats: input.minSeats,
+        limit: input.limit,
+        offset: input.offset,
+      }),
+      this.tripRepo.searchCount({
+        fromCity: input.fromCity,
+        toCity: input.toCity,
+        dateFrom,
+        dateTo,
+        minSeats: input.minSeats,
+      }),
+    ]);
 
     const items: TripItem[] = trips.map((t) => ({
       tripId: t.id,
@@ -55,6 +67,6 @@ export class SearchTripsUseCase {
       status: t.status,
     }));
 
-    return { items, count: items.length };
+    return { items, count: totalCount };
   }
 }

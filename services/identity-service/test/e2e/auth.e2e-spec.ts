@@ -66,6 +66,17 @@ describe('Auth (e2e)', () => {
       expect(res.body.code).toBe('VALIDATION_ERROR');
       expect(res.body).toHaveProperty('details');
     });
+
+    it('should return 400 for password exceeding 128 characters', async () => {
+      const longPassword = 'a'.repeat(129);
+      const res = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'longpass@example.com', password: longPassword });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+      expect(res.body).toHaveProperty('details');
+    });
   });
 
   describe('POST /auth/login', () => {
@@ -146,6 +157,38 @@ describe('Auth (e2e)', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
+    });
+
+    it('should revoke all user tokens on reuse of already-revoked token (reuse detection)', async () => {
+      const rotated = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken });
+      expect(rotated.status).toBe(200);
+      const newRefreshToken = rotated.body.refreshToken;
+
+      // Reuse the old (now revoked) token — triggers reuse detection
+      const reuse = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken });
+      expect(reuse.status).toBe(401);
+      expect(reuse.body.code).toBe('INVALID_REFRESH_TOKEN');
+
+      // The new token should also be invalidated (family revocation)
+      const familyRevoked = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: newRefreshToken });
+      expect(familyRevoked.status).toBe(401);
+      expect(familyRevoked.body.code).toBe('INVALID_REFRESH_TOKEN');
+    });
+
+    it('should include X-RateLimit headers on refresh response', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['x-ratelimit-limit']).toBeDefined();
+      expect(res.headers['x-ratelimit-remaining']).toBeDefined();
     });
   });
 

@@ -131,6 +131,24 @@ describe('Disputes (e2e)', () => {
       expect(res.body.code).toBe('INVALID_STATE');
     });
 
+    it('should return one 200 and one 409 when two resolves race', async () => {
+      const disputeId = await createDispute(futureDepart());
+
+      const [res1, res2] = await Promise.all([
+        request(ctx.app.getHttpServer())
+          .post(`/disputes/${disputeId}/resolve`)
+          .set('Authorization', ADMIN_AUTH)
+          .send({ resolution: 'REFUND' }),
+        request(ctx.app.getHttpServer())
+          .post(`/disputes/${disputeId}/resolve`)
+          .set('Authorization', ADMIN_AUTH)
+          .send({ resolution: 'NO_REFUND' }),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
+
     it('should create audit record on resolve', async () => {
       const disputeId = await createDispute(futureDepart());
 

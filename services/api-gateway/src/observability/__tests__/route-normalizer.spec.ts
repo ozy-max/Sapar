@@ -2,15 +2,13 @@ import { normalizeRoute } from '../route-normalizer';
 
 describe('normalizeRoute', () => {
   it('replaces UUID segments with :id', () => {
-    expect(
-      normalizeRoute('/trips/550e8400-e29b-41d4-a716-446655440000/book'),
-    ).toBe('/trips/:id/book');
+    expect(normalizeRoute('/trips/550e8400-e29b-41d4-a716-446655440000/book')).toBe(
+      '/trips/:id/book',
+    );
   });
 
   it('replaces numeric segments with :id', () => {
-    expect(normalizeRoute('/payments/intents/123/capture')).toBe(
-      '/payments/intents/:id/capture',
-    );
+    expect(normalizeRoute('/payments/intents/123/capture')).toBe('/payments/intents/:id/capture');
   });
 
   it('preserves static routes', () => {
@@ -34,14 +32,10 @@ describe('normalizeRoute', () => {
   });
 
   it('does not touch non-id-like segments', () => {
-    expect(normalizeRoute('/identity/auth/register')).toBe(
-      '/identity/auth/register',
-    );
+    expect(normalizeRoute('/identity/auth/register')).toBe('/identity/auth/register');
   });
 
   it('handles trailing slash', () => {
-    expect(
-      normalizeRoute('/trips/550e8400-e29b-41d4-a716-446655440000/'),
-    ).toBe('/trips/:id/');
+    expect(normalizeRoute('/trips/550e8400-e29b-41d4-a716-446655440000/')).toBe('/trips/:id/');
   });
 });

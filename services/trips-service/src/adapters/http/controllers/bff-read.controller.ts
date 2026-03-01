@@ -83,8 +83,13 @@ export class BffReadController {
     private readonly bookingRepo: BookingRepository,
   ) {}
 
+  /**
+   * Intentionally public — trip details are visible to all users
+   * (similar to BlaBlaCar search results). No JwtAuthGuard required.
+   * Access from outside is restricted via API gateway rate-limiting.
+   */
   @Get('trips/:tripId')
-  @ApiOperation({ summary: 'Get trip by ID (BFF read)' })
+  @ApiOperation({ summary: 'Get trip by ID (BFF read, public)' })
   @ApiParam({ name: 'tripId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Trip details' })
   @ApiResponse({ status: 404, type: ErrorResponseDto })

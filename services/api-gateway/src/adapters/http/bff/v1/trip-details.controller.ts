@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Headers } from '@nestjs/common';
+import { Controller, Get, Param, Headers, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { handleTripDetails } from './trip-details.handler';
 import { TripDetailsResponseDto, BffErrorDto } from '../dto/bff.dto';
@@ -14,7 +14,7 @@ export class TripDetailsController {
   @ApiResponse({ status: 502, type: BffErrorDto })
   @ApiResponse({ status: 504, type: BffErrorDto })
   async getDetails(
-    @Param('tripId') tripId: string,
+    @Param('tripId', new ParseUUIDPipe()) tripId: string,
     @Headers('x-request-id') traceId?: string,
   ): Promise<TripDetailsResponseDto> {
     const tid = traceId ?? 'unknown';

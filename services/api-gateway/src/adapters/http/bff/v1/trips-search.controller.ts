@@ -1,12 +1,24 @@
-import { Controller, Get, Query, Headers } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiQuery,
-} from '@nestjs/swagger';
+import { Controller, Get, Query, Headers, HttpException, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { z } from 'zod';
 import { handleTripsSearch } from './trips-search.handler';
 import { TripsSearchResponseDto, BffErrorDto } from '../dto/bff.dto';
+
+const searchQuerySchema = z.object({
+  fromCity: z.string().min(1).max(100),
+  toCity: z.string().min(1).max(100),
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+    .optional(),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+    .optional(),
+  minSeats: z.coerce.number().int().min(1).max(50).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
 
 @ApiTags('BFF v1 — Trips')
 @Controller('v1/trips')
@@ -33,13 +45,43 @@ export class TripsSearchController {
     @Query('offset') offsetStr?: string,
     @Headers('x-request-id') traceId?: string,
   ): Promise<TripsSearchResponseDto> {
-    const limit = Math.min(Math.max(parseInt(limitStr ?? '20', 10) || 20, 1), 100);
-    const offset = Math.max(parseInt(offsetStr ?? '0', 10) || 0, 0);
-    const minSeats = Math.max(parseInt(minSeatsStr ?? '1', 10) || 1, 1);
+    const parsed = searchQuerySchema.safeParse({
+      fromCity,
+      toCity,
+      dateFrom,
+      dateTo,
+      minSeats: minSeatsStr,
+      limit: limitStr,
+      offset: offsetStr,
+    });
+
+    if (!parsed.success) {
+      throw new HttpException(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid search parameters',
+          details: parsed.error.flatten().fieldErrors,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const { data } = parsed;
+    const limit = data.limit ?? 20;
+    const offset = data.offset ?? 0;
+    const minSeats = data.minSeats ?? 1;
     const tid = traceId ?? 'unknown';
 
     return handleTripsSearch({
-      params: { fromCity, toCity, dateFrom, dateTo, minSeats, limit, offset },
+      params: {
+        fromCity: data.fromCity,
+        toCity: data.toCity,
+        dateFrom: data.dateFrom,
+        dateTo: data.dateTo,
+        minSeats,
+        limit,
+        offset,
+      },
       headers: { 'x-request-id': tid },
       traceId: tid,
     });

@@ -112,7 +112,7 @@ describe('Outbox + Consumer E2E — payments-service', () => {
   // ─── 3) HMAC verification rejects invalid signature ───
   it('should reject event with invalid HMAC signature', async () => {
     const envelope = makeEnvelope();
-    const body = JSON.stringify(envelope);
+    JSON.stringify(envelope);
     const timestamp = Math.floor(Date.now() / 1000);
 
     await request(ctx.app.getHttpServer())

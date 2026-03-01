@@ -18,9 +18,12 @@ export interface GetNotificationOutput {
 export class GetNotificationUseCase {
   constructor(private readonly notifRepo: NotificationRepository) {}
 
-  async execute(id: string): Promise<GetNotificationOutput> {
+  async execute(id: string, userId: string): Promise<GetNotificationOutput> {
     const notif = await this.notifRepo.findById(id);
     if (!notif) {
+      throw new NotificationNotFoundError();
+    }
+    if (notif.userId !== userId) {
       throw new NotificationNotFoundError();
     }
 

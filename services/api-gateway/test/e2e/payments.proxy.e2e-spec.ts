@@ -43,9 +43,7 @@ describe('Payments Proxy', () => {
   });
 
   it('GET /payments/ping -> proxies to downstream', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/payments/ping')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/payments/ping').expect(200);
 
     expect(res.body).toEqual({ service: 'payments', ok: true });
     expect(downstream.lastRequest?.url).toBe('/ping');
@@ -69,10 +67,12 @@ describe('Payments Proxy', () => {
   it('preserves downstream structured error in details', async () => {
     downstream.handler = (_req, res) => {
       res.writeHead(422, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({
-        code: 'INSUFFICIENT_FUNDS',
-        message: 'Not enough balance',
-      }));
+      res.end(
+        JSON.stringify({
+          code: 'INSUFFICIENT_FUNDS',
+          message: 'Not enough balance',
+        }),
+      );
     };
 
     const res = await request(app.getHttpServer())

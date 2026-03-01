@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_gateway
     ports:
       - '5432:5432'
@@ -35,7 +35,7 @@ services:
       - '3000:3000'
     environment:
       PORT: 3000
-      DATABASE_URL: postgresql://sapar:sapar_secret@postgres:5432/sapar_gateway
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@postgres:5432/sapar_gateway
       NODE_ENV: development
       LOG_LEVEL: info
       IDENTITY_BASE_URL: http://identity-service:3001
@@ -54,12 +54,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      trips-service:
+        condition: service_healthy
+      payments-service:
+        condition: service_healthy
+      notifications-service:
+        condition: service_healthy
+      admin-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   identity-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_identity
     ports:
       - '5433:5432'
@@ -79,21 +95,27 @@ services:
       - '3001:3001'
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://sapar:sapar_secret@identity-postgres:5432/sapar_identity
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@identity-postgres:5432/sapar_identity
       NODE_ENV: development
       LOG_LEVEL: info
-      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
-      JWT_ACCESS_TTL_SEC: 900
-      REFRESH_TOKEN_TTL_SEC: 2592000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env.docker}
+      JWT_ACCESS_TTL_SEC: ${JWT_ACCESS_TTL_SEC}
+      REFRESH_TOKEN_TTL_SEC: ${REFRESH_TOKEN_TTL_SEC}
     depends_on:
       identity-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   trips-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_trips
     ports:
       - '5435:5432'
@@ -113,23 +135,29 @@ services:
       - '3002:3002'
     environment:
       PORT: 3002
-      DATABASE_URL: postgresql://sapar:sapar_secret@trips-postgres:5432/sapar_trips
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@trips-postgres:5432/sapar_trips
       NODE_ENV: development
       LOG_LEVEL: info
-      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
-      EVENTS_HMAC_SECRET: sapar-events-hmac-secret-min-32-chars!!
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET:?Set EVENTS_HMAC_SECRET in .env.docker}
       OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events
       BOOKING_TTL_SEC: 900
       EXPIRATION_WORKER_INTERVAL_MS: 1000
     depends_on:
       trips-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3002/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   payments-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_payments
     ports:
       - '5437:5432'
@@ -149,26 +177,32 @@ services:
       - '3003:3003'
     environment:
       PORT: 3003
-      DATABASE_URL: postgresql://sapar:sapar_secret@payments-postgres:5432/sapar_payments
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@payments-postgres:5432/sapar_payments
       NODE_ENV: development
       LOG_LEVEL: info
-      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       PSP_TIMEOUT_MS: 5000
-      PAYMENTS_WEBHOOK_SECRET: change-me-webhook-secret-at-least-32-chars
+      PAYMENTS_WEBHOOK_SECRET: ${PAYMENTS_WEBHOOK_SECRET:?Set PAYMENTS_WEBHOOK_SECRET in .env.docker}
       RECEIPT_RETRY_N: 3
       RECEIPT_BACKOFF_SEC_LIST: '5,30,300'
       RECEIPT_POLL_INTERVAL_MS: 5000
-      EVENTS_HMAC_SECRET: sapar-events-hmac-secret-min-32-chars!!
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
       OUTBOX_TARGETS: payment.intent.hold_placed>http://trips-service:3002/internal/events,payment.intent.failed>http://trips-service:3002/internal/events,payment.captured>http://notifications-service:3004/internal/events,payment.cancelled>http://notifications-service:3004/internal/events,payment.refunded>http://notifications-service:3004/internal/events
     depends_on:
       payments-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3003/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   notifications-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_notifications
     ports:
       - '5439:5432'
@@ -188,25 +222,31 @@ services:
       - '3004:3004'
     environment:
       PORT: 3004
-      DATABASE_URL: postgresql://sapar:sapar_secret@notifications-postgres:5432/sapar_notifications
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@notifications-postgres:5432/sapar_notifications
       NODE_ENV: development
       LOG_LEVEL: info
-      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       NOTIF_RETRY_N: 5
       NOTIF_BACKOFF_SEC_LIST: '5,30,120,300,900'
       WORKER_INTERVAL_MS: 1000
       PROVIDER_TIMEOUT_MS: 3000
-      EVENTS_HMAC_SECRET: sapar-events-hmac-secret-min-32-chars!!
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
       OUTBOX_TARGETS: ''
     depends_on:
       notifications-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3004/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   admin-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sapar
-      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       POSTGRES_DB: sapar_admin
     ports:
       - '5441:5432'
@@ -226,14 +266,22 @@ services:
       - '3005:3005'
     environment:
       PORT: 3005
-      DATABASE_URL: postgresql://sapar:sapar_secret@admin-postgres:5432/sapar_admin
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@admin-postgres:5432/sapar_admin
       NODE_ENV: development
       LOG_LEVEL: info
-      JWT_ACCESS_SECRET: change-me-to-a-random-string-at-least-32-characters
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      OUTBOX_TARGETS: ''
       SLA_RESOLVE_HOURS: 12
     depends_on:
       admin-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   pgdata:

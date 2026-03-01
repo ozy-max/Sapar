@@ -11,6 +11,8 @@ const originalFetch = globalThis.fetch;
 
 beforeAll(() => {
   process.env['NODE_ENV'] = 'test';
+  process.env['DATABASE_URL'] = 'postgresql://test:test@localhost:5432/test';
+  process.env['JWT_ACCESS_SECRET'] = 'test-jwt-secret-at-least-32-characters!!';
   process.env['EVENTS_HMAC_SECRET'] = 'test-secret-at-least-32-characters!!';
   process.env['CONFIG_BASE_URL'] = 'http://admin:3005';
   process.env['CONFIG_CACHE_TTL_MS'] = '100';
@@ -18,6 +20,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  jest.useFakeTimers();
   fetchCallCount = 0;
   fetchResponses = [];
 
@@ -36,6 +39,10 @@ beforeEach(() => {
       text: async () => JSON.stringify(resp.body),
     } as unknown as Response;
   });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 afterAll(() => {
@@ -88,11 +95,11 @@ describe('ConfigClient', () => {
     expect(fetchCallCount).toBe(1);
     expect(client.get<number>('K2')).toBe(10);
 
-    await new Promise((r) => setTimeout(r, 150));
+    jest.advanceTimersByTime(150);
 
     client.get<number>('K2');
 
-    await new Promise((r) => setTimeout(r, 50));
+    await jest.advanceTimersByTimeAsync(50);
 
     expect(fetchCallCount).toBe(2);
   });

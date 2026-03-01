@@ -79,7 +79,13 @@ export function resetEnvCache(): void {
 
 export function getOutboxBackoffSchedule(): number[] {
   const env = loadEnv();
-  return env.OUTBOX_BACKOFF_SEC_LIST.split(',').map((s) => parseInt(s.trim(), 10));
+  const values = env.OUTBOX_BACKOFF_SEC_LIST.split(',').map((s) => {
+    const n = parseInt(s.trim(), 10);
+    if (isNaN(n) || n < 0) throw new Error(`Invalid OUTBOX_BACKOFF_SEC_LIST value: '${s.trim()}'`);
+    return n;
+  });
+  if (values.length === 0) throw new Error('OUTBOX_BACKOFF_SEC_LIST must contain at least one value');
+  return values;
 }
 
 export function parseOutboxTargets(raw: string): Map<string, string> {

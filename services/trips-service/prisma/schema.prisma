@@ -54,6 +54,7 @@ model Booking {
 
   @@unique([tripId, passengerId])
   @@index([status, createdAt])
+  @@index([passengerId])
   @@map("bookings")
 }
 

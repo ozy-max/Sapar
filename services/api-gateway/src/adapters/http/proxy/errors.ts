@@ -14,18 +14,14 @@ export const ProxyErrorCode = {
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
 } as const;
 
-export type ProxyErrorCodeType =
-  (typeof ProxyErrorCode)[keyof typeof ProxyErrorCode];
+export type ProxyErrorCodeType = (typeof ProxyErrorCode)[keyof typeof ProxyErrorCode];
 
 export function createProxyError(
   code: ProxyErrorCodeType,
   traceId: string,
   details?: Record<string, unknown>,
 ): HttpException {
-  const mapping: Record<
-    ProxyErrorCodeType,
-    { status: number; message: string }
-  > = {
+  const mapping: Record<ProxyErrorCodeType, { status: number; message: string }> = {
     [ProxyErrorCode.DOWNSTREAM_UNAVAILABLE]: {
       status: HttpStatus.BAD_GATEWAY,
       message: 'Downstream service is unavailable',
@@ -55,10 +51,7 @@ export function createProxyError(
   return new HttpException(body, entry.status);
 }
 
-export function mapDownstreamError(
-  error: unknown,
-  traceId: string,
-): HttpException {
+export function mapDownstreamError(error: unknown, traceId: string): HttpException {
   const err = error as Record<string, unknown> | null | undefined;
   const msg = (
     error instanceof Error
@@ -94,10 +87,7 @@ export function mapDownstreamError(
     causeCode === 'ENOTFOUND' ||
     causeCode === 'ECONNRESET'
   ) {
-    return createProxyError(
-      ProxyErrorCode.DOWNSTREAM_UNAVAILABLE,
-      traceId,
-    );
+    return createProxyError(ProxyErrorCode.DOWNSTREAM_UNAVAILABLE, traceId);
   }
 
   return createProxyError(ProxyErrorCode.BAD_GATEWAY, traceId);

@@ -12,7 +12,7 @@ export function createRateLimitGuard(
   policies: ReadonlyArray<RateLimitPolicy>,
   service: RateLimitService,
   metrics: RateLimitMetrics,
-  trustProxy: boolean,
+  _trustProxy: boolean,
 ): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     const policy = matchPolicy(req.path, policies);
@@ -22,7 +22,7 @@ export function createRateLimitGuard(
     }
 
     const traceId = (req.headers['x-request-id'] as string) ?? 'unknown';
-    const clientKey = buildRateLimitKey(req, trustProxy);
+    const clientKey = buildRateLimitKey(req);
     const redisKey = `rl:${policy.prefix}:${clientKey}`;
     const start = performance.now();
 
@@ -50,10 +50,7 @@ export function createRateLimitGuard(
           return;
         }
 
-        const retryAfterSec = Math.max(
-          1,
-          decision.resetAtEpochSec - Math.floor(Date.now() / 1000),
-        );
+        const retryAfterSec = Math.max(1, decision.resetAtEpochSec - Math.floor(Date.now() / 1000));
 
         logger.warn({
           msg: 'rate_limit_exceeded',

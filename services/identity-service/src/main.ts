@@ -13,20 +13,28 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', env.TRUST_PROXY ? 1 : false);
+
   app.use(requestIdMiddleware);
   app.use(authRateLimitMiddleware);
+  // WARNING: authRateLimitMiddleware uses in-memory storage — not safe for >1 replica.
+  // TODO: Migrate to Redis-based rate limiting before horizontal scaling.
   app.use(httpMetricsMiddleware);
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Sapar Identity Service')
-    .setDescription('Authentication and identity management for Sapar')
-    .setVersion('0.0.1')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('swagger', app, document);
+  if (env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Sapar Identity Service')
+      .setDescription('Authentication and identity management for Sapar')
+      .setVersion('0.0.1')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('swagger', app, document);
+  }
 
+  app.enableShutdownHooks();
   await app.listen(env.PORT, '0.0.0.0');
 }
 

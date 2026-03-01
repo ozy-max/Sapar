@@ -6,7 +6,7 @@ export const createTripSchema = z.object({
   toCity: z.string().min(1).max(200),
   departAt: z.string().datetime(),
   seatsTotal: z.number().int().min(1).max(50),
-  priceKgs: z.number().int().min(0),
+  priceKgs: z.number().int().min(1, 'Price must be at least 1 KGS'),
 });
 
 export type CreateTripInput = z.infer<typeof createTripSchema>;

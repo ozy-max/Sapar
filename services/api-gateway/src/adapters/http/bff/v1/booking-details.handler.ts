@@ -15,9 +15,7 @@ export async function handleBookingDetails(
   try {
     const [bookingResp, paymentResp] = await Promise.all([
       getBookingDetail(input.bookingId, input.headers),
-      getPaymentSummary(input.bookingId, input.headers).catch(
-        (): null => null,
-      ),
+      getPaymentSummary(input.bookingId, input.headers).catch((): null => null),
     ]);
 
     const b = bookingResp.data;

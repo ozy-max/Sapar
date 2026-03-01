@@ -1,3 +1,9 @@
+/**
+ * SHARED CODE — duplicated across services.
+ * Canonical source: services/trips-service/src/shared/hmac.ts
+ * TODO: Extract to @sapar/shared package when monorepo tooling is set up.
+ * Any changes must be applied to all copies.
+ */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export function signEvent(body: string, timestamp: number, secret: string): string {

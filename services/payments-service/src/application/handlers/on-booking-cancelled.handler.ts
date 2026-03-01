@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { EventHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
 import { OutboxService } from '../../shared/outbox.service';
@@ -7,6 +8,7 @@ import { PSP_ADAPTER, PspAdapter } from '../../adapters/psp/psp.interface';
 import { withTimeout } from '../../shared/psp-timeout';
 import { loadEnv } from '../../config/env';
 import { recordPaymentCompensation, recordSagaOutcome } from '../../observability/saga-metrics';
+import { DataCorruptionError } from '../../shared/errors';
 
 interface PaymentIntentRow {
   id: string;
@@ -18,13 +20,13 @@ interface PaymentIntentRow {
   psp_intent_id: string | null;
 }
 
-interface BookingCancelledPayload {
-  bookingId: string;
-  tripId: string;
-  passengerId: string;
-  seats: number;
-  reason: string;
-}
+const bookingCancelledPayloadSchema = z.object({
+  bookingId: z.string().uuid(),
+  tripId: z.string().uuid(),
+  passengerId: z.string().uuid(),
+  seats: z.number().int().positive(),
+  reason: z.string().min(1),
+});
 
 @Injectable()
 export class OnBookingCancelledHandler implements EventHandler {
@@ -37,7 +39,17 @@ export class OnBookingCancelledHandler implements EventHandler {
   ) {}
 
   async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
-    const p = event.payload as unknown as BookingCancelledPayload;
+    const parsed = bookingCancelledPayloadSchema.safeParse(event.payload);
+    if (!parsed.success) {
+      this.logger.warn({
+        msg: 'Invalid booking.cancelled payload',
+        errors: parsed.error.flatten().fieldErrors,
+        eventId: event.eventId,
+        traceId: event.traceId,
+      });
+      return;
+    }
+    const p = parsed.data;
 
     const intents = await tx.$queryRaw<PaymentIntentRow[]>`
       SELECT id, booking_id, payer_id, amount_kgs, currency, status, psp_intent_id
@@ -82,11 +94,20 @@ export class OnBookingCancelledHandler implements EventHandler {
       recordSagaOutcome('payments', 'cancel_hold', 'success');
 
     } else if (row.status === 'CAPTURED') {
-      try {
-        await withTimeout(this.psp.refund(row.psp_intent_id!, row.amount_kgs), env.PSP_TIMEOUT_MS);
-      } catch (error) {
-        this.logger.error({ msg: 'PSP refund failed, will retry', bookingId: p.bookingId, error: String(error), traceId: event.traceId });
-        throw error;
+      if (!row.psp_intent_id) {
+        throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+      }
+
+      const pspStatus = await withTimeout(this.psp.getStatus(row.psp_intent_id), env.PSP_TIMEOUT_MS);
+      if (pspStatus.status === 'refunded') {
+        this.logger.warn({ msg: 'PSP already refunded, syncing local state', paymentIntentId: row.id, traceId: event.traceId });
+      } else {
+        try {
+          await withTimeout(this.psp.refund(row.psp_intent_id, row.amount_kgs), env.PSP_TIMEOUT_MS);
+        } catch (error) {
+          this.logger.error({ msg: 'PSP refund failed, will retry', bookingId: p.bookingId, error: String(error), traceId: event.traceId });
+          throw error;
+        }
       }
 
       await tx.paymentIntent.update({ where: { id: row.id }, data: { status: 'REFUNDED' } });

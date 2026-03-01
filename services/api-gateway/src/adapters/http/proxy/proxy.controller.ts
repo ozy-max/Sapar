@@ -22,10 +22,7 @@ export class ProxyController {
   @ApiResponse({ status: 200, description: 'Proxied response from Identity' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
   @ApiResponse({ status: 504, description: 'Downstream timeout' })
-  async proxyIdentity(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async proxyIdentity(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.dispatchProxy(req, res);
   }
 
@@ -34,10 +31,7 @@ export class ProxyController {
   @ApiResponse({ status: 200, description: 'Proxied response from Trips' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
   @ApiResponse({ status: 504, description: 'Downstream timeout' })
-  async proxyTrips(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async proxyTrips(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.dispatchProxy(req, res);
   }
 
@@ -46,10 +40,7 @@ export class ProxyController {
   @ApiResponse({ status: 200, description: 'Proxied response from Payments' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
   @ApiResponse({ status: 504, description: 'Downstream timeout' })
-  async proxyPayments(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async proxyPayments(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.dispatchProxy(req, res);
   }
 
@@ -58,10 +49,7 @@ export class ProxyController {
   @ApiResponse({ status: 200, description: 'Proxied response from Admin' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
   @ApiResponse({ status: 504, description: 'Downstream timeout' })
-  async proxyAdmin(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async proxyAdmin(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.dispatchProxy(req, res);
   }
 

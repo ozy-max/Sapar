@@ -6,10 +6,12 @@ import { OutboxService } from '../shared/outbox.service';
 import { PSP_ADAPTER, PspAdapter } from '../adapters/psp/psp.interface';
 import { loadEnv } from '../config/env';
 import { withTimeout } from '../shared/psp-timeout';
+import { Prisma } from '@prisma/client';
 import {
   IdempotencyConflictError,
   PspUnavailableError,
   InvalidPaymentStateError,
+  ForbiddenPaymentError,
 } from '../shared/errors';
 
 export interface CreateIntentInput {
@@ -41,6 +43,22 @@ export class CreateIntentUseCase {
   async execute(input: CreateIntentInput): Promise<CreateIntentOutput> {
     const env = loadEnv();
 
+    // Trust boundary: the BFF/gateway must verify that the caller owns the booking
+    // before forwarding to this service. Payments-service has no direct access to
+    // trips-service DB, so we enforce a unique constraint on bookingId to prevent
+    // duplicate intents and rely on the BFF for ownership verification.
+    const existingForBooking = await this.intentRepo.findByBookingId(input.bookingId);
+    if (existingForBooking) {
+      if (existingForBooking.payerId !== input.payerId) {
+        throw new InvalidPaymentStateError('Booking already has a payment intent from another payer');
+      }
+      return {
+        paymentIntentId: existingForBooking.id,
+        status: existingForBooking.status,
+        bookingId: existingForBooking.bookingId,
+      };
+    }
+
     if (input.idempotencyKey) {
       const existing = await this.intentRepo.findByIdempotencyKey(
         input.idempotencyKey,
@@ -61,13 +79,29 @@ export class CreateIntentUseCase {
       }
     }
 
-    const intent = await this.intentRepo.create({
-      bookingId: input.bookingId,
-      payerId: input.payerId,
-      amountKgs: input.amountKgs,
-      currency: 'KGS',
-      idempotencyKey: input.idempotencyKey,
-    });
+    let intent;
+    try {
+      intent = await this.intentRepo.create({
+        bookingId: input.bookingId,
+        payerId: input.payerId,
+        amountKgs: input.amountKgs,
+        currency: 'KGS',
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await this.intentRepo.findByBookingId(input.bookingId);
+        if (existing && existing.payerId === input.payerId) {
+          return {
+            paymentIntentId: existing.id,
+            status: existing.status,
+            bookingId: existing.bookingId,
+          };
+        }
+        throw new ForbiddenPaymentError();
+      }
+      throw error;
+    }
 
     let pspIntentId: string;
     try {

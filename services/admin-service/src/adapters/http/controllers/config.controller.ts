@@ -29,6 +29,7 @@ import { UpsertConfigUseCase } from '../../../application/upsert-config.usecase'
 import { DeleteConfigUseCase } from '../../../application/delete-config.usecase';
 import { upsertConfigSchema, UpsertConfigInput, UpsertConfigBodyDto, ConfigResponseDto } from '../dto/config.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
+import { ValidationError } from '../../../shared/errors';
 
 @ApiTags('configs')
 @Controller('configs')
@@ -59,6 +60,7 @@ export class ConfigController {
   @ApiResponse({ status: 200, type: ConfigResponseDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   async getByKey(@Param('key') key: string): Promise<ConfigResponseDto> {
+    this.validateKeyLength(key);
     return this.getConfigByKey.execute(key);
   }
 
@@ -78,6 +80,7 @@ export class ConfigController {
     @CurrentUserRoles() roles: string[],
     @Headers('x-request-id') traceId: string,
   ): Promise<ConfigResponseDto> {
+    this.validateKeyLength(key);
     return this.upsertConfig.execute({
       key,
       type: input.type,
@@ -103,11 +106,18 @@ export class ConfigController {
     @CurrentUserRoles() roles: string[],
     @Headers('x-request-id') traceId: string,
   ): Promise<void> {
+    this.validateKeyLength(key);
     await this.deleteConfig.execute({
       key,
       actorUserId: userId,
       actorRoles: roles,
       traceId,
     });
+  }
+
+  private validateKeyLength(key: string): void {
+    if (key.length > 256) {
+      throw new ValidationError({ key: 'Config key must be at most 256 characters' });
+    }
   }
 }

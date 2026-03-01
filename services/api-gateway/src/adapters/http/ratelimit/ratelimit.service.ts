@@ -11,11 +11,7 @@ export class RateLimitService {
     private readonly timeoutMs: number,
   ) {}
 
-  async checkRateLimit(
-    key: string,
-    limit: number,
-    windowSec: number,
-  ): Promise<LuaRateLimitResult> {
+  async checkRateLimit(key: string, limit: number, windowSec: number): Promise<LuaRateLimitResult> {
     const nowSec = Date.now() / 1000;
     const raw = await withTimeout(
       this.redis.eval(
@@ -34,13 +30,16 @@ export class RateLimitService {
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Redis timeout after ${ms}ms`)),
-      ms,
-    );
+    const timer = setTimeout(() => reject(new Error(`Redis timeout after ${ms}ms`)), ms);
     promise.then(
-      (val) => { clearTimeout(timer); resolve(val); },
-      (err: unknown) => { clearTimeout(timer); reject(err); },
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
     );
   });
 }

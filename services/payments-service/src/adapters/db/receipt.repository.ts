@@ -32,16 +32,15 @@ export class ReceiptRepository {
     });
   }
 
-  async findDueIds(): Promise<string[]> {
-    const rows = await this.prisma.receipt.findMany({
-      where: {
-        status: 'PENDING',
-        nextRetryAt: { lte: new Date() },
-      },
-      select: { id: true },
-      orderBy: { nextRetryAt: 'asc' },
-      take: 10,
-    });
+  async findDueIds(limit = 10): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM receipts
+      WHERE status = 'PENDING'
+        AND next_retry_at <= NOW()
+      ORDER BY next_retry_at ASC
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    `;
     return rows.map((r) => r.id);
   }
 
@@ -86,6 +85,16 @@ export class ReceiptRepository {
     await tx.receipt.update({
       where: { id },
       data: { status: 'FAILED_FINAL', lastError, tryCount },
+    });
+  }
+
+  async findByPaymentIntentIds(
+    paymentIntentIds: string[],
+  ): Promise<Receipt[]> {
+    if (paymentIntentIds.length === 0) return [];
+    return this.prisma.receipt.findMany({
+      where: { paymentIntentId: { in: paymentIntentIds } },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

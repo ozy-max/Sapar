@@ -54,6 +54,8 @@ export class ProcessNotificationsUseCase {
     for (const notifId of dueIds) {
       try {
         await this.prisma.$transaction(async (tx) => {
+          // Provider HTTP call happens inside TX for atomicity; timeout bounds it
+
           const row = await this.notifRepo.lockById(notifId, tx);
           if (!row) return;
 
@@ -184,7 +186,7 @@ export class ProcessNotificationsUseCase {
               );
             }
           }
-        });
+        }, { timeout: 15_000 });
 
         result.total++;
       } catch (error) {

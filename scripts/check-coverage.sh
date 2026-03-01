@@ -21,9 +21,9 @@ fi
 
 LINES_PCT=$(node -e "
   const fs = require('fs');
-  const data = JSON.parse(fs.readFileSync('${SUMMARY}', 'utf8'));
+  const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
   process.stdout.write(String(data.total.lines.pct));
-")
+" "$SUMMARY")
 
 echo "Lines coverage: ${LINES_PCT}% (threshold: ${THRESHOLD}%)"
 

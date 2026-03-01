@@ -1,7 +1,19 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { z } from 'zod';
 import { UserRepository } from '../adapters/db/user.repository';
 import { loadEnv } from '../config/env';
 import { signPayload } from '../shared/hmac';
+
+const banUserPayloadSchema = z.object({
+  userId: z.string().uuid(),
+  reason: z.string().min(1),
+  until: z.string().optional(),
+});
+
+const unbanUserPayloadSchema = z.object({
+  userId: z.string().uuid(),
+  reason: z.string().min(1),
+});
 
 interface AdminCommandItem {
   id: string;
@@ -94,7 +106,13 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
     try {
       switch (cmd.type) {
         case 'BAN_USER': {
-          const p = cmd.payload as { userId: string; reason: string; until?: string };
+          const parsed = banUserPayloadSchema.safeParse(cmd.payload);
+          if (!parsed.success) {
+            this.logger.warn({ msg: 'Invalid BAN_USER payload', errors: parsed.error.flatten(), commandId: cmd.id });
+            ackStatus = 'APPLIED';
+            break;
+          }
+          const p = parsed.data;
           const user = await this.userRepo.findById(p.userId);
           if (!user) {
             ackStatus = 'APPLIED';
@@ -111,7 +129,13 @@ export class AdminCommandWorker implements OnModuleInit, OnModuleDestroy {
           break;
         }
         case 'UNBAN_USER': {
-          const p = cmd.payload as { userId: string; reason: string };
+          const parsed = unbanUserPayloadSchema.safeParse(cmd.payload);
+          if (!parsed.success) {
+            this.logger.warn({ msg: 'Invalid UNBAN_USER payload', errors: parsed.error.flatten(), commandId: cmd.id });
+            ackStatus = 'APPLIED';
+            break;
+          }
+          const p = parsed.data;
           const user = await this.userRepo.findById(p.userId);
           if (!user) {
             ackStatus = 'APPLIED';

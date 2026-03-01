@@ -1,3 +1,11 @@
+/**
+ * WARNING: This is an in-memory rate limiter. It does NOT work correctly
+ * with horizontal scaling (multiple replicas). For production with >1 replica,
+ * migrate to Redis-based rate limiting (see api-gateway implementation).
+ *
+ * TODO: Migrate to Redis-backed rate limiting (ioredis + Lua script)
+ * when horizontal scaling is enabled.
+ */
 import { Request, Response, NextFunction } from 'express';
 
 interface BucketEntry {
@@ -7,6 +15,7 @@ interface BucketEntry {
 
 const LOGIN_MAX = 10;
 const REGISTER_MAX = 5;
+const REFRESH_MAX = 20;
 const WINDOW_MS = 60_000;
 
 const buckets = new Map<string, BucketEntry>();
@@ -25,9 +34,7 @@ function ensureCleanup(): void {
 }
 
 function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-  return req.socket.remoteAddress ?? 'unknown';
+  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
 function check(key: string, max: number): { allowed: boolean; remaining: number; resetAt: number } {
@@ -52,6 +59,8 @@ export function authRateLimitMiddleware(req: Request, res: Response, next: NextF
     max = LOGIN_MAX;
   } else if (path === '/auth/register') {
     max = REGISTER_MAX;
+  } else if (path === '/auth/refresh') {
+    max = REFRESH_MAX;
   } else {
     next();
     return;

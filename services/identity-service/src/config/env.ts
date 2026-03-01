@@ -30,6 +30,8 @@ const envSchema = z
     CONFIG_BASE_URL: z.string().min(1).default('http://admin-service:3005'),
     CONFIG_CACHE_TTL_MS: z.coerce.number().int().positive().default(30000),
     CONFIG_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+
+    TRUST_PROXY: z.coerce.boolean().default(false),
   })
   .superRefine((_val, ctx) => {
     if (

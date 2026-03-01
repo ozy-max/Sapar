@@ -14,6 +14,8 @@ export interface PspAdapter {
   cancelHold(pspIntentId: string): Promise<void>;
 
   refund(pspIntentId: string, amount?: number): Promise<void>;
+
+  getStatus(pspIntentId: string): Promise<{ status: string }>;
 }
 
 export const PSP_ADAPTER = Symbol('PSP_ADAPTER');

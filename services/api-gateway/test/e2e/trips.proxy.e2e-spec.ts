@@ -43,9 +43,7 @@ describe('Trips Proxy', () => {
   });
 
   it('GET /trips/ping -> proxies to downstream', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/trips/ping')
-      .expect(200);
+    const res = await request(app.getHttpServer()).get('/trips/ping').expect(200);
 
     expect(res.body).toEqual({ service: 'trips', ok: true });
     expect(downstream.lastRequest?.url).toBe('/ping');
@@ -90,9 +88,7 @@ describe('Trips Proxy', () => {
       res.end();
     };
 
-    await request(app.getHttpServer())
-      .delete('/trips/456')
-      .expect(204);
+    await request(app.getHttpServer()).delete('/trips/456').expect(204);
 
     expect(downstream.lastRequest?.method).toBe('DELETE');
     expect(downstream.lastRequest?.url).toBe('/456');

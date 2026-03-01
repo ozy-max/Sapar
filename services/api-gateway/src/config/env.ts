@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-const nodeEnvSchema = z
-  .enum(['development', 'production', 'test'])
-  .default('development');
+const nodeEnvSchema = z.enum(['development', 'production', 'test']).default('development');
 
 const isNonTest = (): boolean => {
   const raw = process.env['NODE_ENV'] ?? 'development';
@@ -19,9 +17,7 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(3000),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     NODE_ENV: nodeEnvSchema,
-    LOG_LEVEL: z
-      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
-      .default('info'),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
     IDENTITY_BASE_URL: z.string().url('IDENTITY_BASE_URL must be a valid URL'),
     TRIPS_BASE_URL: z.string().url('TRIPS_BASE_URL must be a valid URL'),
@@ -40,13 +36,21 @@ const envSchema = z
     ALLOWED_ORIGINS: z
       .string()
       .default('*')
-      .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+      .transform((v) =>
+        v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
 
     RATE_IDENTITY_RPM: z.coerce.number().int().positive().default(60),
     RATE_TRIPS_RPM: z.coerce.number().int().positive().default(120),
     RATE_PAYMENTS_RPM: z.coerce.number().int().positive().default(30),
     RATE_ADMIN_RPM: z.coerce.number().int().positive().default(60),
+    RATE_BFF_RPM: z.coerce.number().int().positive().default(100),
     RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+
+    EVENTS_HMAC_SECRET: z.string().min(32).default('hmac-secret-for-dev-at-least-32-chars!!'),
   })
   .superRefine((_val, ctx) => {
     if (isNonTest() && !process.env['HTTP_TIMEOUT_MS']) {
