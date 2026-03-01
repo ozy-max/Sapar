@@ -190,3 +190,43 @@ groups:
           service: notifications-service
         annotations:
           summary: "Notification FAILED_FINAL outcomes increasing"
+
+  - name: sapar_outbox_backlog
+    interval: 15s
+    rules:
+      # --- Outbox pending events growing (backlog) ---
+      - alert: OutboxBacklogGrowing
+        expr: |
+          increase(outbox_event_total{status="pending"}[10m]) -
+          increase(outbox_event_total{status="delivered"}[10m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} outbox backlog growing — pending outpacing delivered"
+          runbook: "docs/runbooks/outbox-backlog-growth.md"
+
+  - name: sapar_connections
+    interval: 15s
+    rules:
+      # --- DB connection errors spike ---
+      - alert: DatabaseConnectionErrorsSpike
+        expr: |
+          increase(db_connection_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} database connection errors spiking"
+          runbook: "docs/runbooks/downstream-outage.md"
+
+      # --- Redis connection errors spike ---
+      - alert: RedisConnectionErrorsSpike
+        expr: |
+          increase(redis_connection_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} Redis connection errors spiking"
+          runbook: "docs/runbooks/redis-down.md"
