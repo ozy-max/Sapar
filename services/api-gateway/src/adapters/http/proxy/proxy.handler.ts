@@ -12,6 +12,7 @@ import {
 import { ProxyMetrics } from './metrics';
 import { getSharedDispatcher } from './http-client';
 import { loadEnv } from '../../../config/env';
+import { recordAppError } from '../../../observability/error-metrics';
 
 const logger = new Logger('ProxyHandler');
 
@@ -39,6 +40,7 @@ export async function handleProxy(
       receivedBytes: bodyBytes,
     });
     const body = err.getResponse() as UnifiedErrorBody;
+    recordAppError(body.code);
     res.status(err.getStatus()).json(body);
     return;
   }
@@ -128,6 +130,7 @@ export async function handleProxy(
 
     const httpErr = mapDownstreamError(error, traceId);
     const body = httpErr.getResponse() as UnifiedErrorBody;
+    recordAppError(body.code);
     res.status(httpErr.getStatus()).json(body);
   }
 }

@@ -1,0 +1,75 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../adapters/db/prisma.service';
+import { BookingRepository } from '../adapters/db/booking.repository';
+import { TripRepository } from '../adapters/db/trip.repository';
+import {
+  BookingNotFoundError,
+  BookingNotActiveError,
+  ForbiddenError,
+  TripNotFoundError,
+} from '../shared/errors';
+
+interface CancelBookingInput {
+  bookingId: string;
+  userId: string;
+}
+
+interface CancelBookingOutput {
+  bookingId: string;
+  status: string;
+}
+
+@Injectable()
+export class CancelBookingUseCase {
+  private readonly logger = new Logger(CancelBookingUseCase.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bookingRepo: BookingRepository,
+    private readonly tripRepo: TripRepository,
+  ) {}
+
+  async execute(input: CancelBookingInput): Promise<CancelBookingOutput> {
+    const booking = await this.bookingRepo.findById(input.bookingId);
+    if (!booking) throw new BookingNotFoundError();
+
+    const trip = await this.tripRepo.findById(booking.tripId);
+    if (!trip) throw new TripNotFoundError();
+
+    if (booking.passengerId !== input.userId && trip.driverId !== input.userId) {
+      throw new ForbiddenError();
+    }
+
+    if (booking.status !== 'ACTIVE') throw new BookingNotActiveError();
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM trips WHERE id = ${booking.tripId}::uuid FOR UPDATE`;
+
+        const freshBooking = await tx.booking.findUnique({ where: { id: input.bookingId } });
+        if (!freshBooking || freshBooking.status !== 'ACTIVE') throw new BookingNotActiveError();
+
+        await tx.booking.update({
+          where: { id: input.bookingId },
+          data: { status: 'CANCELLED' },
+        });
+
+        await tx.trip.update({
+          where: { id: booking.tripId },
+          data: { seatsAvailable: { increment: freshBooking.seats } },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        timeout: 10_000,
+      },
+    );
+
+    this.logger.log(
+      `Booking cancelled: bookingId=${input.bookingId} by userId=${input.userId}`,
+    );
+
+    return { bookingId: input.bookingId, status: 'CANCELLED' };
+  }
+}

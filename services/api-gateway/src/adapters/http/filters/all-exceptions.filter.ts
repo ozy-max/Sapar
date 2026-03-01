@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { recordAppError } from '../../../observability/error-metrics';
 
 interface UnifiedError {
   code: string;
@@ -45,8 +46,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details = obj['details'] as Record<string, unknown> | undefined;
       }
     } else {
+      const raw = exception as Record<string, unknown> | null;
+      const rawStatus = (raw?.['status'] ?? raw?.['statusCode']) as number | undefined;
+
+      if (typeof rawStatus === 'number' && rawStatus >= 400 && rawStatus < 600) {
+        status = rawStatus;
+        const rawType = raw?.['type'] as string | undefined;
+        if (rawType === 'entity.too.large' || rawStatus === 413) {
+          code = 'PAYLOAD_TOO_LARGE';
+        } else {
+          code = HttpStatus[status] ?? code;
+        }
+        message = typeof raw?.['message'] === 'string' ? (raw['message'] as string) : message;
+      }
+
       this.logger.error(exception, `Unhandled exception [traceId=${traceId}]`);
     }
+
+    recordAppError(code);
 
     const errorBody: UnifiedError = {
       code,

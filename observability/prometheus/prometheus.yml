@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: api-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api-gateway:3000']
+        labels:
+          service: api-gateway
+
+  - job_name: identity-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['identity-service:3001']
+        labels:
+          service: identity-service
+
+  - job_name: trips-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['trips-service:3002']
+        labels:
+          service: trips-service
+
+  - job_name: payments-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['payments-service:3003']
+        labels:
+          service: payments-service
+
+  - job_name: notifications-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['notifications-service:3004']
+        labels:
+          service: notifications-service

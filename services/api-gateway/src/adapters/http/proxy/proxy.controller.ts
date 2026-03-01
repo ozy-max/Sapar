@@ -3,7 +3,8 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { buildRouteTable, resolveRoute, RouteEntry } from './route-table';
 import { handleProxy } from './proxy.handler';
-import { NoopProxyMetrics, ProxyMetrics } from './metrics';
+import { ProxyMetrics } from './metrics';
+import { PrometheusProxyMetrics } from '../../../observability/proxy-metrics.impl';
 
 @ApiTags('Proxy')
 @Controller()
@@ -13,7 +14,7 @@ export class ProxyController {
 
   constructor() {
     this.routeTable = buildRouteTable();
-    this.metrics = new NoopProxyMetrics();
+    this.metrics = new PrometheusProxyMetrics();
   }
 
   @All('identity/*')

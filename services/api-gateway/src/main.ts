@@ -8,9 +8,10 @@ import { requestIdMiddleware } from './adapters/http/middleware/request-id.middl
 import { getRedisClient } from './adapters/redis/redis.client';
 import { RateLimitService } from './adapters/http/ratelimit/ratelimit.service';
 import { buildRateLimitPolicies } from './adapters/http/ratelimit/ratelimit.policy';
-import { NoopRateLimitMetrics } from './adapters/http/ratelimit/metrics';
 import { createRateLimitGuard } from './adapters/http/ratelimit/ratelimit.guard';
 import { loadEnv } from './config/env';
+import { httpMetricsMiddleware } from './observability/http-metrics.middleware';
+import { PrometheusRateLimitMetrics } from './observability/ratelimit-metrics.impl';
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
@@ -19,12 +20,13 @@ async function bootstrap(): Promise<void> {
 
   app.use(json({ limit: env.MAX_BODY_BYTES }));
   app.use(requestIdMiddleware);
+  app.use(httpMetricsMiddleware);
 
   if (env.REDIS_URL) {
     const redis = getRedisClient(env.REDIS_URL);
     const rateLimitService = new RateLimitService(redis, env.REDIS_TIMEOUT_MS);
     const policies = buildRateLimitPolicies(env);
-    const metrics = new NoopRateLimitMetrics();
+    const metrics = new PrometheusRateLimitMetrics();
     app.use(createRateLimitGuard(policies, rateLimitService, metrics, env.TRUST_PROXY));
   }
 

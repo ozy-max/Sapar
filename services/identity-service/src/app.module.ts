@@ -6,6 +6,8 @@ import { SharedModule } from './shared/shared.module';
 import { DatabaseModule } from './adapters/db/database.module';
 import { AuthModule } from './adapters/http/auth.module';
 import { HealthController } from './adapters/http/controllers/health.controller';
+import { ObservabilityModule } from './observability/observability.module';
+import { normalizeRoute } from './observability/route-normalizer';
 
 @Module({
   imports: [
@@ -17,7 +19,8 @@ import { HealthController } from './adapters/http/controllers/health.controller'
         },
         serializers: {
           req(req: Record<string, unknown>): Record<string, unknown> {
-            return { id: req['id'], method: req['method'], url: req['url'] };
+            const url = (req['url'] as string) ?? '/';
+            return { id: req['id'], method: req['method'], url, route: normalizeRoute(url) };
           },
           res(res: Record<string, unknown>): Record<string, unknown> {
             return { statusCode: res['statusCode'] };
@@ -25,6 +28,10 @@ import { HealthController } from './adapters/http/controllers/health.controller'
         },
         customProps: (req: IncomingMessage): Record<string, unknown> => ({
           traceId: req.headers['x-request-id'],
+          service: 'identity-service',
+          env: process.env['NODE_ENV'] ?? 'development',
+          spanId: '',
+          parentSpanId: '',
         }),
         transport:
           process.env['NODE_ENV'] !== 'production'
@@ -35,6 +42,7 @@ import { HealthController } from './adapters/http/controllers/health.controller'
     SharedModule,
     DatabaseModule,
     AuthModule,
+    ObservabilityModule,
   ],
   controllers: [HealthController],
 })

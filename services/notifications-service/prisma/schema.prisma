@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED_RETRY
+  FAILED_FINAL
+  CANCELLED
+}
+
+model Notification {
+  id                String             @id @default(uuid()) @db.Uuid
+  userId            String             @map("user_id") @db.Uuid
+  channel           NotificationChannel
+  templateKey       String             @map("template_key")
+  payloadJson       Json               @default("{}") @map("payload_json")
+  status            NotificationStatus @default(PENDING)
+  idempotencyKey    String?            @map("idempotency_key")
+  tryCount          Int                @default(0) @map("try_count")
+  nextRetryAt       DateTime           @default(now()) @map("next_retry_at")
+  lastError         String?            @map("last_error")
+  providerMessageId String?            @map("provider_message_id")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  events NotificationEvent[]
+
+  @@unique([idempotencyKey, userId])
+  @@index([status, nextRetryAt])
+  @@index([userId])
+  @@map("notifications")
+}
+
+model NotificationEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  notificationId String   @map("notification_id") @db.Uuid
+  type           String
+  payloadJson    Json     @default("{}") @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@map("notification_events")
+}

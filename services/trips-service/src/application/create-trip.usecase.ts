@@ -1,0 +1,55 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { TripRepository } from '../adapters/db/trip.repository';
+
+interface CreateTripInput {
+  driverId: string;
+  fromCity: string;
+  toCity: string;
+  departAt: string;
+  seatsTotal: number;
+  priceKgs: number;
+}
+
+interface CreateTripOutput {
+  tripId: string;
+  driverId: string;
+  fromCity: string;
+  toCity: string;
+  departAt: string;
+  seatsTotal: number;
+  seatsAvailable: number;
+  priceKgs: number;
+  status: string;
+}
+
+@Injectable()
+export class CreateTripUseCase {
+  private readonly logger = new Logger(CreateTripUseCase.name);
+
+  constructor(private readonly tripRepo: TripRepository) {}
+
+  async execute(input: CreateTripInput): Promise<CreateTripOutput> {
+    const trip = await this.tripRepo.create({
+      driverId: input.driverId,
+      fromCity: input.fromCity,
+      toCity: input.toCity,
+      departAt: new Date(input.departAt),
+      seatsTotal: input.seatsTotal,
+      priceKgs: input.priceKgs,
+    });
+
+    this.logger.log(`Trip created: tripId=${trip.id} driverId=${trip.driverId}`);
+
+    return {
+      tripId: trip.id,
+      driverId: trip.driverId,
+      fromCity: trip.fromCity,
+      toCity: trip.toCity,
+      departAt: trip.departAt.toISOString(),
+      seatsTotal: trip.seatsTotal,
+      seatsAvailable: trip.seatsAvailable,
+      priceKgs: trip.priceKgs,
+      status: trip.status,
+    };
+  }
+}

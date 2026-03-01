@@ -59,34 +59,45 @@ export function mapDownstreamError(
   error: unknown,
   traceId: string,
 ): HttpException {
-  if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-    const cause = (error as { cause?: { code?: string } }).cause;
-    const causeCode = cause?.code ?? '';
+  const err = error as Record<string, unknown> | null | undefined;
+  const msg = (
+    error instanceof Error
+      ? error.message
+      : typeof err?.['message'] === 'string'
+        ? (err['message'] as string)
+        : String(error)
+  ).toLowerCase();
 
-    if (
-      msg.includes('abort') ||
-      msg.includes('timeout') ||
-      causeCode === 'UND_ERR_CONNECT_TIMEOUT' ||
-      causeCode === 'UND_ERR_HEADERS_TIMEOUT' ||
-      causeCode === 'UND_ERR_BODY_TIMEOUT'
-    ) {
-      return createProxyError(ProxyErrorCode.DOWNSTREAM_TIMEOUT, traceId);
-    }
+  const cause = (err?.['cause'] ?? null) as Record<string, unknown> | null;
+  const causeCode = (typeof cause?.['code'] === 'string' ? cause['code'] : '') as string;
+  const errCode = (typeof err?.['code'] === 'string' ? err['code'] : '') as string;
+  const errName = (typeof err?.['name'] === 'string' ? err['name'] : '') as string;
 
-    if (
-      msg.includes('econnrefused') ||
-      msg.includes('enotfound') ||
-      msg.includes('econnreset') ||
-      causeCode === 'ECONNREFUSED' ||
-      causeCode === 'ENOTFOUND' ||
-      causeCode === 'ECONNRESET'
-    ) {
-      return createProxyError(
-        ProxyErrorCode.DOWNSTREAM_UNAVAILABLE,
-        traceId,
-      );
-    }
+  if (
+    msg.includes('abort') ||
+    msg.includes('timeout') ||
+    errName === 'TimeoutError' ||
+    errCode === 'UND_ERR_CONNECT_TIMEOUT' ||
+    causeCode === 'UND_ERR_CONNECT_TIMEOUT' ||
+    causeCode === 'UND_ERR_HEADERS_TIMEOUT' ||
+    causeCode === 'UND_ERR_BODY_TIMEOUT'
+  ) {
+    return createProxyError(ProxyErrorCode.DOWNSTREAM_TIMEOUT, traceId);
+  }
+
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnreset') ||
+    errCode === 'ECONNREFUSED' ||
+    causeCode === 'ECONNREFUSED' ||
+    causeCode === 'ENOTFOUND' ||
+    causeCode === 'ECONNRESET'
+  ) {
+    return createProxyError(
+      ProxyErrorCode.DOWNSTREAM_UNAVAILABLE,
+      traceId,
+    );
   }
 
   return createProxyError(ProxyErrorCode.BAD_GATEWAY, traceId);
