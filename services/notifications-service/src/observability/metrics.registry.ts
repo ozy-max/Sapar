@@ -69,6 +69,15 @@ export const dbErrorsTotal = new Counter({
   registers: [registry],
 });
 
+/* ── Notification outcomes ────────────────────────────────── */
+
+export const notificationOutcomeTotal = new Counter({
+  name: 'notification_outcome_total',
+  help: 'Total notification processing outcomes by channel and status',
+  labelNames: ['channel', 'status'] as const,
+  registers: [registry],
+});
+
 /* ── External calls (notification providers) ─────────────── */
 
 export const externalCallDurationMs = new Histogram({

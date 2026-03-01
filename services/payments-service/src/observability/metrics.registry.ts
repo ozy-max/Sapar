@@ -69,6 +69,15 @@ export const dbErrorsTotal = new Counter({
   registers: [registry],
 });
 
+/* ── Receipt statuses ────────────────────────────────────── */
+
+export const receiptStatusTotal = new Counter({
+  name: 'receipt_status_total',
+  help: 'Total receipt processing outcomes by status',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
 /* ── External calls (PSP / receipt issuer) ───────────────── */
 
 export const externalCallDurationMs = new Histogram({

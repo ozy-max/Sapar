@@ -15,6 +15,18 @@ import { getTemplate, renderTemplate } from '../domain/templates';
 import { loadEnv, getBackoffSchedule } from '../config/env';
 import { withTimeout } from '../shared/provider-timeout';
 
+export interface NotificationProcessResult {
+  total: number;
+  sent: number;
+  retried: number;
+  failedFinal: number;
+  channels: Record<string, { sent: number; retried: number; failedFinal: number }>;
+}
+
+function emptyChannelStats(): { sent: number; retried: number; failedFinal: number } {
+  return { sent: 0, retried: 0, failedFinal: 0 };
+}
+
 @Injectable()
 export class ProcessNotificationsUseCase {
   private readonly logger = new Logger(ProcessNotificationsUseCase.name);
@@ -28,11 +40,11 @@ export class ProcessNotificationsUseCase {
     @Inject(PUSH_PROVIDER) private readonly push: PushProvider,
   ) {}
 
-  async processOnce(): Promise<number> {
+  async processOnce(): Promise<NotificationProcessResult> {
     const env = loadEnv();
     const backoff = getBackoffSchedule();
     const maxRetries = env.NOTIF_RETRY_N;
-    let processed = 0;
+    const result: NotificationProcessResult = { total: 0, sent: 0, retried: 0, failedFinal: 0, channels: {} };
 
     const dueIds = await this.notifRepo.findDueIds();
 
@@ -46,6 +58,10 @@ export class ProcessNotificationsUseCase {
           const payload = (row.payload_json ?? {}) as Record<string, unknown>;
           const channel = row.channel as 'SMS' | 'EMAIL' | 'PUSH';
 
+          const chKey = channel.toLowerCase();
+          if (!result.channels[chKey]) result.channels[chKey] = emptyChannelStats();
+          const chStats = result.channels[chKey]!;
+
           const template = getTemplate(row.template_key, channel);
           if (!template) {
             this.logger.warn(
@@ -57,11 +73,13 @@ export class ProcessNotificationsUseCase {
               { tryCount: nextTry, lastError: 'TEMPLATE_NOT_FOUND' },
               tx,
             );
+            result.failedFinal++;
+            chStats.failedFinal++;
             return;
           }
 
           try {
-            const result = await this.sendViaProvider(
+            const sendResult = await this.sendViaProvider(
               channel,
               row.user_id,
               template,
@@ -72,7 +90,7 @@ export class ProcessNotificationsUseCase {
             await this.notifRepo.updateStatus(
               row.id,
               'SENT',
-              { tryCount: nextTry, providerMessageId: result.providerMessageId },
+              { tryCount: nextTry, providerMessageId: sendResult.providerMessageId },
               tx,
             );
 
@@ -80,11 +98,13 @@ export class ProcessNotificationsUseCase {
               {
                 notificationId: row.id,
                 type: 'SENT',
-                payloadJson: { providerMessageId: result.providerMessageId, try: nextTry },
+                payloadJson: { providerMessageId: sendResult.providerMessageId, try: nextTry },
               },
               tx,
             );
 
+            result.sent++;
+            chStats.sent++;
             this.logger.log(`Notification ${row.id} sent on try ${nextTry}`);
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -104,6 +124,8 @@ export class ProcessNotificationsUseCase {
                 },
                 tx,
               );
+              result.failedFinal++;
+              chStats.failedFinal++;
               this.logger.error(
                 `Notification ${row.id} reached max retries (${maxRetries}), marking FAILED_FINAL`,
               );
@@ -125,6 +147,8 @@ export class ProcessNotificationsUseCase {
                 },
                 tx,
               );
+              result.retried++;
+              chStats.retried++;
               this.logger.warn(
                 `Notification ${row.id} failed try ${nextTry}, next retry at ${nextRetryAt.toISOString()}`,
               );
@@ -132,13 +156,13 @@ export class ProcessNotificationsUseCase {
           }
         });
 
-        processed++;
+        result.total++;
       } catch (error) {
         this.logger.error(error, `Failed to process notification ${notifId}`);
       }
     }
 
-    return processed;
+    return result;
   }
 
   private async sendViaProvider(

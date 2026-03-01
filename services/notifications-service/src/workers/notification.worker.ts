@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ProcessNotificationsUseCase } from '../application/process-notifications.usecase';
 import { loadEnv } from '../config/env';
+import { recordNotificationOutcome, NotificationChannel } from '../observability/notification-metrics';
 
 @Injectable()
 export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
@@ -36,9 +37,17 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
-      const count = await this.processNotifications.processOnce();
-      if (count > 0) {
-        this.logger.log(`Processed ${count} notification(s)`);
+      const result = await this.processNotifications.processOnce();
+
+      for (const [ch, stats] of Object.entries(result.channels)) {
+        const channel = ch as NotificationChannel;
+        if (stats.sent > 0) recordNotificationOutcome(channel, 'sent', stats.sent);
+        if (stats.retried > 0) recordNotificationOutcome(channel, 'retry', stats.retried);
+        if (stats.failedFinal > 0) recordNotificationOutcome(channel, 'failed_final', stats.failedFinal);
+      }
+
+      if (result.total > 0) {
+        this.logger.log(`Processed ${result.total} notification(s): sent=${result.sent}, retried=${result.retried}, failedFinal=${result.failedFinal}`);
       }
     } catch (error) {
       this.logger.error(error, 'Notification worker tick failed');

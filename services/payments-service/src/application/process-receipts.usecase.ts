@@ -5,6 +5,13 @@ import { PaymentIntentRepository } from '../adapters/db/payment-intent.repositor
 import { RECEIPT_ISSUER, ReceiptIssuer } from '../adapters/psp/psp.interface';
 import { loadEnv, getBackoffSchedule } from '../config/env';
 
+export interface ReceiptProcessResult {
+  total: number;
+  issued: number;
+  retried: number;
+  failedFinal: number;
+}
+
 @Injectable()
 export class ProcessReceiptsUseCase {
   private readonly logger = new Logger(ProcessReceiptsUseCase.name);
@@ -16,11 +23,11 @@ export class ProcessReceiptsUseCase {
     @Inject(RECEIPT_ISSUER) private readonly issuer: ReceiptIssuer,
   ) {}
 
-  async processOnce(): Promise<number> {
+  async processOnce(): Promise<ReceiptProcessResult> {
     const env = loadEnv();
     const backoff = getBackoffSchedule();
     const maxRetries = env.RECEIPT_RETRY_N;
-    let processed = 0;
+    const result: ReceiptProcessResult = { total: 0, issued: 0, retried: 0, failedFinal: 0 };
 
     const dueIds = await this.receiptRepo.findDueIds();
 
@@ -47,6 +54,7 @@ export class ProcessReceiptsUseCase {
               intent.currency,
             );
             await this.receiptRepo.markIssued(row.id, tx);
+            result.issued++;
             this.logger.log(`Receipt ${row.id} issued on try ${nextTry}`);
           } catch (error) {
             const errorMsg =
@@ -59,6 +67,7 @@ export class ProcessReceiptsUseCase {
                 nextTry,
                 tx,
               );
+              result.failedFinal++;
               this.logger.error(
                 `Receipt ${row.id} reached max retries (${maxRetries}), marking FAILED_FINAL`,
               );
@@ -74,6 +83,7 @@ export class ProcessReceiptsUseCase {
                 errorMsg,
                 tx,
               );
+              result.retried++;
               this.logger.warn(
                 `Receipt ${row.id} failed try ${nextTry}, next retry at ${nextRetryAt.toISOString()}`,
               );
@@ -81,7 +91,7 @@ export class ProcessReceiptsUseCase {
           }
         });
 
-        processed++;
+        result.total++;
       } catch (error) {
         this.logger.error(
           error,
@@ -90,6 +100,6 @@ export class ProcessReceiptsUseCase {
       }
     }
 
-    return processed;
+    return result;
   }
 }
