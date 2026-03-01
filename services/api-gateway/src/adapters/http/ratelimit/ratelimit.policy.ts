@@ -36,6 +36,12 @@ export function buildRateLimitPolicies(env: Env): ReadonlyArray<RateLimitPolicy>
       failStrategy: 'closed',
     },
     {
+      prefix: 'profiles',
+      rpm: env.RATE_PROFILES_RPM,
+      windowSec: env.RATE_LIMIT_WINDOW_SEC,
+      failStrategy: 'open',
+    },
+    {
       prefix: 'v1',
       rpm: env.RATE_BFF_RPM,
       windowSec: env.RATE_LIMIT_WINDOW_SEC,

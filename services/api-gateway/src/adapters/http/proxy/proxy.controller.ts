@@ -62,6 +62,16 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
+  @All('profiles/*')
+  @ApiOperation({ summary: 'Proxy to Profiles service (e.g. GET /profiles/:userId)' })
+  @ApiResponse({ status: 200, description: 'Proxied response from Profiles' })
+  @ApiResponse({ status: 502, description: 'Downstream unavailable' })
+  @ApiResponse({ status: 503, description: 'Circuit breaker open' })
+  @ApiResponse({ status: 504, description: 'Downstream timeout' })
+  async proxyProfiles(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.dispatchProxy(req, res);
+  }
+
   private async dispatchProxy(req: Request, res: Response): Promise<void> {
     const resolved = resolveRoute(req.path, this.routeTable);
     if (!resolved) {

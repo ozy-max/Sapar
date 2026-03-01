@@ -41,6 +41,12 @@ export class TripsSearchResponseDto {
 
 /* ── Trip Details ── */
 
+export class DriverRatingDto {
+  @ApiProperty({ example: 4.7 }) ratingAvg!: number;
+  @ApiProperty({ example: 23 }) ratingCount!: number;
+  @ApiProperty({ example: 'Алмат Касымов' }) displayName!: string;
+}
+
 export class TripDetailsResponseDto {
   @ApiProperty() tripId!: string;
   @ApiProperty() fromCity!: string;
@@ -51,6 +57,7 @@ export class TripDetailsResponseDto {
   @ApiProperty() seatsAvailable!: number;
   @ApiProperty() status!: string;
   @ApiPropertyOptional() driverId?: string;
+  @ApiPropertyOptional({ type: DriverRatingDto }) driverRating?: DriverRatingDto;
   @ApiProperty({ type: MetaDto }) meta!: MetaDto;
 }
 

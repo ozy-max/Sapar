@@ -23,6 +23,10 @@ const envSchema = z
     TRIPS_BASE_URL: z.string().url('TRIPS_BASE_URL must be a valid URL'),
     PAYMENTS_BASE_URL: z.string().url('PAYMENTS_BASE_URL must be a valid URL'),
     ADMIN_BASE_URL: z.string().url('ADMIN_BASE_URL must be a valid URL'),
+    PROFILES_BASE_URL: z
+      .string()
+      .url('PROFILES_BASE_URL must be a valid URL')
+      .default('http://profiles-service:3006'),
 
     HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
     BFF_TIMEOUT_MS: z.coerce.number().int().positive().default(2500),
@@ -54,6 +58,7 @@ const envSchema = z
     RATE_TRIPS_RPM: z.coerce.number().int().positive().default(120),
     RATE_PAYMENTS_RPM: z.coerce.number().int().positive().default(30),
     RATE_ADMIN_RPM: z.coerce.number().int().positive().default(60),
+    RATE_PROFILES_RPM: z.coerce.number().int().positive().default(100),
     RATE_BFF_RPM: z.coerce.number().int().positive().default(100),
     RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
 

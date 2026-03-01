@@ -43,6 +43,7 @@ services:
       PAYMENTS_BASE_URL: http://payments-service:3003
       NOTIFICATIONS_BASE_URL: http://notifications-service:3004
       ADMIN_BASE_URL: http://admin-service:3005
+      PROFILES_BASE_URL: http://profiles-service:3006
       HTTP_TIMEOUT_MS: 3000
       BFF_TIMEOUT_MS: 2500
       MAX_BODY_BYTES: 1048576
@@ -63,6 +64,8 @@ services:
       notifications-service:
         condition: service_healthy
       admin-service:
+        condition: service_healthy
+      profiles-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
@@ -143,7 +146,7 @@ services:
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET:?Set EVENTS_HMAC_SECRET in .env.docker}
-      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events
+      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events,trip.completed>http://profiles-service:3006/internal/events
       BOOKING_TTL_SEC: 900
       EXPIRATION_WORKER_INTERVAL_MS: 1000
     depends_on:
@@ -286,6 +289,46 @@ services:
       retries: 3
       start_period: 20s
 
+  profiles-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      POSTGRES_DB: sapar_profiles
+    ports:
+      - '5443:5432'
+    volumes:
+      - profiles-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_profiles']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  profiles-service:
+    build:
+      context: ./services/profiles-service
+      dockerfile: Dockerfile
+    ports:
+      - '3006:3006'
+    environment:
+      PORT: 3006
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@profiles-postgres:5432/sapar_profiles
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      RATING_WINDOW_DAYS: 14
+    depends_on:
+      profiles-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3006/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
 volumes:
   pgdata:
   redisdata:
@@ -294,3 +337,4 @@ volumes:
   payments-pgdata:
   notifications-pgdata:
   admin-pgdata:
+  profiles-pgdata:

@@ -10,6 +10,7 @@ import { SearchTripsUseCase } from '../../application/search-trips.usecase';
 import { BookSeatUseCase } from '../../application/book-seat.usecase';
 import { CancelBookingUseCase } from '../../application/cancel-booking.usecase';
 import { CancelTripUseCase } from '../../application/cancel-trip.usecase';
+import { CompleteTripUseCase } from '../../application/complete-trip.usecase';
 import { OnPaymentHoldPlacedHandler } from '../../application/handlers/on-payment-hold-placed.handler';
 import { OnPaymentIntentFailedHandler } from '../../application/handlers/on-payment-intent-failed.handler';
 
@@ -23,6 +24,7 @@ import { OnPaymentIntentFailedHandler } from '../../application/handlers/on-paym
     BookSeatUseCase,
     CancelBookingUseCase,
     CancelTripUseCase,
+    CompleteTripUseCase,
     OnPaymentHoldPlacedHandler,
     OnPaymentIntentFailedHandler,
   ],

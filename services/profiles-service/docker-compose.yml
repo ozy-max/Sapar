@@ -1,0 +1,33 @@
+services:
+  profiles-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_DB: sapar_profiles
+    ports:
+      - '5445:5432'
+    volumes:
+      - profiles-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_profiles']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  profiles-postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: sapar_secret
+      POSTGRES_DB: sapar_profiles_test
+    ports:
+      - '5446:5432'
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_profiles_test']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  profiles-pgdata:

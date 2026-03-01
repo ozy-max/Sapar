@@ -14,6 +14,7 @@ export function buildRouteTable(): ReadonlyArray<RouteEntry> {
     { prefix: 'trips', upstream: 'trips', baseUrl: env.TRIPS_BASE_URL },
     { prefix: 'payments', upstream: 'payments', baseUrl: env.PAYMENTS_BASE_URL },
     { prefix: 'admin', upstream: 'admin', baseUrl: env.ADMIN_BASE_URL },
+    { prefix: 'profiles', upstream: 'profiles', baseUrl: env.PROFILES_BASE_URL },
   ];
 }
 

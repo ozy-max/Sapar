@@ -28,6 +28,7 @@ import { CreateTripUseCase } from '../../../application/create-trip.usecase';
 import { SearchTripsUseCase } from '../../../application/search-trips.usecase';
 import { BookSeatUseCase } from '../../../application/book-seat.usecase';
 import { CancelTripUseCase } from '../../../application/cancel-trip.usecase';
+import { CompleteTripUseCase } from '../../../application/complete-trip.usecase';
 import {
   createTripSchema,
   CreateTripInput,
@@ -56,6 +57,7 @@ export class TripsController {
     private readonly searchTrips: SearchTripsUseCase,
     private readonly bookSeat: BookSeatUseCase,
     private readonly cancelTrip: CancelTripUseCase,
+    private readonly completeTrip: CompleteTripUseCase,
   ) {}
 
   @Post()
@@ -131,5 +133,24 @@ export class TripsController {
     @Headers('x-request-id') traceId?: string,
   ): Promise<{ tripId: string; status: string }> {
     return this.cancelTrip.execute({ tripId, userId, traceId: traceId ?? '' });
+  }
+
+  @Post(':tripId/complete')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Complete a trip (driver only)' })
+  @ApiParam({ name: 'tripId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, schema: { example: { tripId: 'uuid', status: 'COMPLETED', completedAt: '2026-01-01T00:00:00.000Z' } } })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 403, type: ErrorResponseDto })
+  @ApiResponse({ status: 404, type: ErrorResponseDto })
+  @ApiResponse({ status: 409, type: ErrorResponseDto })
+  async complete(
+    @Param('tripId', ParseUUIDPipe) tripId: string,
+    @CurrentUser() userId: string,
+    @Headers('x-request-id') traceId?: string,
+  ): Promise<{ tripId: string; status: string; completedAt: string }> {
+    return this.completeTrip.execute({ tripId, userId, traceId: traceId ?? '' });
   }
 }

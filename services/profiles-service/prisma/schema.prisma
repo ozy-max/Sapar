@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RatingRole {
+  DRIVER_RATES_PASSENGER
+  PASSENGER_RATES_DRIVER
+}
+
+enum RatingStatus {
+  ACTIVE
+  DELETED
+}
+
+model UserProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  bio         String?
+  city        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([city])
+  @@map("user_profiles")
+}
+
+model Rating {
+  id          String       @id @default(uuid()) @db.Uuid
+  tripId      String       @map("trip_id") @db.Uuid
+  bookingId   String       @map("booking_id") @db.Uuid
+  raterUserId String       @map("rater_user_id") @db.Uuid
+  ratedUserId String       @map("rated_user_id") @db.Uuid
+  role        RatingRole
+  score       Int
+  comment     String?
+  status      RatingStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@unique([tripId, raterUserId, role])
+  @@index([ratedUserId, status, createdAt])
+  @@index([tripId])
+  @@map("ratings")
+}
+
+model RatingAggregate {
+  userId      String   @id @map("user_id") @db.Uuid
+  ratingCount Int      @default(0) @map("rating_count")
+  ratingSum   Int      @default(0) @map("rating_sum")
+  ratingAvg   Float    @default(0) @map("rating_avg")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("rating_aggregates")
+}
+
+model RatingEligibility {
+  id          String   @id @default(uuid()) @db.Uuid
+  tripId      String   @map("trip_id") @db.Uuid
+  bookingId   String   @map("booking_id") @db.Uuid
+  driverId    String   @map("driver_id") @db.Uuid
+  passengerId String   @map("passenger_id") @db.Uuid
+  completedAt DateTime @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([tripId, passengerId])
+  @@index([bookingId])
+  @@map("rating_eligibilities")
+}
+
+model ConsumedEvent {
+  eventId    String   @id @map("event_id") @db.Uuid
+  eventType  String   @map("event_type")
+  consumedAt DateTime @default(now()) @map("consumed_at")
+  producer   String
+  traceId    String   @map("trace_id")
+
+  @@map("consumed_events")
+}
