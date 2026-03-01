@@ -18,6 +18,16 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
+  const isWildcard = env.ALLOWED_ORIGINS.length === 1 && env.ALLOWED_ORIGINS[0] === '*';
+  app.enableCors({
+    origin: isWildcard ? '*' : env.ALLOWED_ORIGINS,
+    credentials: !isWildcard,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
+    exposedHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    maxAge: 600,
+  });
+
   app.use(json({ limit: env.MAX_BODY_BYTES }));
   app.use(requestIdMiddleware);
   app.use(httpMetricsMiddleware);

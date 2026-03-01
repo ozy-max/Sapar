@@ -23,6 +23,12 @@ export class OnPaymentIntentFailedHandler implements EventHandler {
   async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
     const p = event.payload as unknown as PaymentIntentFailedPayload;
 
+    await tx.$queryRaw`
+      SELECT id FROM trips
+      WHERE id = (SELECT trip_id FROM bookings WHERE id = ${p.bookingId}::uuid)
+      FOR UPDATE
+    `;
+
     const rows = await tx.$queryRaw<BookingRow[]>`
       SELECT id, trip_id, passenger_id, seats, status, created_at, updated_at
       FROM bookings

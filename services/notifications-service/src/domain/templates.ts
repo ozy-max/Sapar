@@ -26,6 +26,15 @@ const templates: TemplateRegistry = {
       body: 'Sapar: бронирование {{bookingId}} отменено. Причина: {{reason}}.',
     },
   },
+  PAYMENT_HOLD_PLACED: {
+    PUSH: {
+      body: 'Средства {{amountKgs}} KGS заморожены по бронированию {{bookingId}}. Ожидайте подтверждения.',
+    },
+    EMAIL: {
+      subject: 'Средства заморожены — Sapar',
+      body: 'Здравствуйте! По бронированию {{bookingId}} заморожено {{amountKgs}} KGS. Платёж будет списан после подтверждения поездки.',
+    },
+  },
 };
 
 export function getTemplate(

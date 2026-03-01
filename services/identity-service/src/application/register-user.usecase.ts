@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { UserRepository } from '../adapters/db/user.repository';
 import { CryptoService } from '../shared/crypto.service';
 import { EmailTakenError } from '../shared/errors';
@@ -31,7 +32,19 @@ export class RegisterUserUseCase {
     }
 
     const passwordHash = await this.crypto.hashPassword(input.password);
-    const user = await this.userRepo.create({ email, passwordHash });
+
+    let user;
+    try {
+      user = await this.userRepo.create({ email, passwordHash });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new EmailTakenError();
+      }
+      throw error;
+    }
 
     this.logger.log(`User registered: userId=${user.id}`);
 

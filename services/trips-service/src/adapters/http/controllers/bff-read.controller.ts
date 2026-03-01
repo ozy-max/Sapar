@@ -3,8 +3,6 @@ import {
   Get,
   Param,
   Query,
-  Headers,
-  HttpStatus,
   UseGuards,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -21,7 +19,7 @@ import { CurrentUser } from '../decorators/current-user.decorator';
 import { TripRepository } from '../../db/trip.repository';
 import { BookingRepository } from '../../db/booking.repository';
 import { ErrorResponseDto } from '../dto/error.dto';
-import { TripNotFoundError, BookingNotFoundError } from '../../../shared/errors';
+import { TripNotFoundError, BookingNotFoundError, ForbiddenError } from '../../../shared/errors';
 
 interface TripDetailResponse {
   tripId: string;
@@ -112,15 +110,26 @@ export class BffReadController {
   }
 
   @Get('bookings/:bookingId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get booking by ID with trip info (BFF read)' })
   @ApiParam({ name: 'bookingId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Booking with trip details' })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 403, type: ErrorResponseDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   async getBookingById(
+    @CurrentUser() userId: string,
     @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
   ): Promise<BookingDetailResponse> {
     const booking = await this.bookingRepo.findByIdWithTrip(bookingId);
     if (!booking) throw new BookingNotFoundError();
+
+    const isPassenger = booking.passengerId === userId;
+    const isDriver = booking.trip.driverId === userId;
+    if (!isPassenger && !isDriver) {
+      throw new ForbiddenError();
+    }
 
     return {
       bookingId: booking.id,

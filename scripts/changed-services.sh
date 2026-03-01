@@ -14,6 +14,7 @@ ALL_SERVICES=(
   "trips-service"
   "payments-service"
   "notifications-service"
+  "admin-service"
 )
 
 # Shared paths: any change here → rebuild ALL services

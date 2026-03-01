@@ -22,6 +22,12 @@ export class InvalidCredentialsError extends AppError {
   }
 }
 
+export class AccountBannedError extends AppError {
+  constructor(until: Date) {
+    super('ACCOUNT_BANNED', 403, `Account is banned until ${until.toISOString()}`);
+  }
+}
+
 export class InvalidRefreshTokenError extends AppError {
   constructor() {
     super('INVALID_REFRESH_TOKEN', 401, 'Refresh token is invalid or expired');

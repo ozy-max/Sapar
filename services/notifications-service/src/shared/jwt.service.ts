@@ -5,13 +5,16 @@ import { loadEnv } from '../config/env';
 export interface AccessTokenPayload {
   sub: string;
   email: string;
+  roles: string[];
 }
 
 @Injectable()
 export class JwtTokenService {
   verifyAccessToken(token: string): AccessTokenPayload & { iat: number; exp: number } {
     const env = loadEnv();
-    return jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload & {
+    return jwt.verify(token, env.JWT_ACCESS_SECRET, {
+      algorithms: ['HS256'],
+    }) as AccessTokenPayload & {
       iat: number;
       exp: number;
     };

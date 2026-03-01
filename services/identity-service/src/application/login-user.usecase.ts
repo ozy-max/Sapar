@@ -3,7 +3,7 @@ import { UserRepository } from '../adapters/db/user.repository';
 import { RefreshTokenRepository } from '../adapters/db/refresh-token.repository';
 import { CryptoService } from '../shared/crypto.service';
 import { JwtTokenService } from '../shared/jwt.service';
-import { InvalidCredentialsError } from '../shared/errors';
+import { InvalidCredentialsError, AccountBannedError } from '../shared/errors';
 import { loadEnv } from '../config/env';
 
 interface LoginInput {
@@ -40,6 +40,10 @@ export class LoginUserUseCase {
     const valid = await this.crypto.verifyPassword(user.passwordHash, input.password);
     if (!valid) {
       throw new InvalidCredentialsError();
+    }
+
+    if (user.bannedUntil && user.bannedUntil > new Date()) {
+      throw new AccountBannedError(user.bannedUntil);
     }
 
     await this.refreshTokenRepo.revokeAllByUserId(user.id);

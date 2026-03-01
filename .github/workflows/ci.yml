@@ -168,6 +168,8 @@ jobs:
             trips-service)          PORT=3002 ;;
             payments-service)       PORT=3003 ;;
             notifications-service)  PORT=3004 ;;
+            admin-service)          PORT=3005 ;;
+            *) echo "Unknown service: ${{ matrix.service }}"; exit 1 ;;
           esac
 
           docker run -d --name smoke-test \
@@ -180,10 +182,12 @@ jobs:
             -e JWT_ACCESS_SECRET="ci-smoke-test-secret-at-least-32-characters-long" \
             -e JWT_ACCESS_TTL_SEC=900 \
             -e REFRESH_TOKEN_TTL_SEC=2592000 \
+            -e EVENTS_HMAC_SECRET="ci-events-hmac-secret-at-least-32-characters!!" \
             -e IDENTITY_BASE_URL="http://localhost:3001" \
             -e TRIPS_BASE_URL="http://localhost:3002" \
             -e PAYMENTS_BASE_URL="http://localhost:3003" \
             -e NOTIFICATIONS_BASE_URL="http://localhost:3004" \
+            -e ADMIN_BASE_URL="http://localhost:3005" \
             -e HTTP_TIMEOUT_MS=3000 \
             -e MAX_BODY_BYTES=1048576 \
             -e TRUST_PROXY=false \

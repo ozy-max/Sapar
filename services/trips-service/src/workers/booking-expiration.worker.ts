@@ -63,6 +63,12 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
   private async expireBooking(bookingId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM trips
+        WHERE id = (SELECT trip_id FROM bookings WHERE id = ${bookingId}::uuid)
+        FOR UPDATE
+      `;
+
       const locked = await tx.$queryRaw<BookingRow[]>`
         SELECT id, trip_id, passenger_id, seats, status, created_at, updated_at
         FROM bookings

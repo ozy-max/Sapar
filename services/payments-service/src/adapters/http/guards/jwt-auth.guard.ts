@@ -19,6 +19,7 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = this.jwtService.verifyAccessToken(token);
       (request as unknown as Record<string, unknown>)['userId'] = payload.sub;
+      (request as unknown as Record<string, unknown>)['userRoles'] = payload.roles ?? [];
       return true;
     } catch {
       throw new UnauthorizedError();

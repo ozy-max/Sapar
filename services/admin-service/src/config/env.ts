@@ -40,6 +40,16 @@ const envSchema = z
         message: 'JWT_ACCESS_SECRET must be at least 32 characters in non-test environments',
       });
     }
+    if (
+      isNonTest() &&
+      (!process.env['EVENTS_HMAC_SECRET'] || process.env['EVENTS_HMAC_SECRET'].length < 32)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EVENTS_HMAC_SECRET'],
+        message: 'EVENTS_HMAC_SECRET must be at least 32 characters in non-test environments',
+      });
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;

@@ -37,6 +37,11 @@ const envSchema = z
 
     TRUST_PROXY: booleanString,
 
+    ALLOWED_ORIGINS: z
+      .string()
+      .default('*')
+      .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+
     RATE_IDENTITY_RPM: z.coerce.number().int().positive().default(60),
     RATE_TRIPS_RPM: z.coerce.number().int().positive().default(120),
     RATE_PAYMENTS_RPM: z.coerce.number().int().positive().default(30),

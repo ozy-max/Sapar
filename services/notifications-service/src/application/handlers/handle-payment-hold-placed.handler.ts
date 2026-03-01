@@ -22,7 +22,7 @@ export class HandlePaymentHoldPlacedHandler implements EventHandler {
       data: {
         userId: p.passengerId,
         channel: 'PUSH',
-        templateKey: 'payment_hold_placed',
+        templateKey: 'PAYMENT_HOLD_PLACED',
         payloadJson: {
           bookingId: p.bookingId,
           paymentIntentId: p.paymentIntentId,

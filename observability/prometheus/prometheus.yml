@@ -37,3 +37,10 @@ scrape_configs:
       - targets: ['notifications-service:3004']
         labels:
           service: notifications-service
+
+  - job_name: admin-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['admin-service:3005']
+        labels:
+          service: admin-service
