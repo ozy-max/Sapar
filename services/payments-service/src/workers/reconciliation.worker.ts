@@ -95,19 +95,30 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
 
           await this.intentRepo.updateStatus(intent.id, 'FAILED', tx);
           await this.eventRepo.create(
-            { paymentIntentId: intent.id, type: 'FAILED', payloadJson: { reason: 'reconciliation_no_psp_id' } },
+            {
+              paymentIntentId: intent.id,
+              type: 'FAILED',
+              payloadJson: { reason: 'reconciliation_no_psp_id' },
+            },
             tx,
           );
           await this.outboxService.publish(
             {
               eventType: 'payment.failed',
-              payload: { paymentIntentId: intent.id, bookingId: locked.booking_id, reason: 'reconciliation_no_psp_id' },
+              payload: {
+                paymentIntentId: intent.id,
+                bookingId: locked.booking_id,
+                reason: 'reconciliation_no_psp_id',
+              },
               traceId,
             },
             tx,
           );
         });
-        this.logger.warn({ msg: `Reconciled ${intent.status} intent without psp_intent_id → FAILED`, intentId: intent.id });
+        this.logger.warn({
+          msg: `Reconciled ${intent.status} intent without psp_intent_id → FAILED`,
+          intentId: intent.id,
+        });
       }
       return;
     }
@@ -152,9 +163,18 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
           );
         }
       });
-      this.logger.log({ msg: 'Reconciled intent', intentId: intent.id, from: intent.status, to: mappedStatus });
+      this.logger.log({
+        msg: 'Reconciled intent',
+        intentId: intent.id,
+        from: intent.status,
+        to: mappedStatus,
+      });
     } catch (error) {
-      this.logger.warn({ msg: 'Reconciliation PSP check failed', intentId: intent.id, error: String(error) });
+      this.logger.warn({
+        msg: 'Reconciliation PSP check failed',
+        intentId: intent.id,
+        error: String(error),
+      });
     }
   }
 }

@@ -6,7 +6,19 @@ import { HoldPlacementWorker } from './hold-placement.worker';
 import { ProcessReceiptsUseCase } from '../application/process-receipts.usecase';
 
 @Module({
-  providers: [ReceiptWorker, OutboxWorker, ReconciliationWorker, HoldPlacementWorker, ProcessReceiptsUseCase],
-  exports: [ReceiptWorker, OutboxWorker, ReconciliationWorker, HoldPlacementWorker, ProcessReceiptsUseCase],
+  providers: [
+    ReceiptWorker,
+    OutboxWorker,
+    ReconciliationWorker,
+    HoldPlacementWorker,
+    ProcessReceiptsUseCase,
+  ],
+  exports: [
+    ReceiptWorker,
+    OutboxWorker,
+    ReconciliationWorker,
+    HoldPlacementWorker,
+    ProcessReceiptsUseCase,
+  ],
 })
 export class WorkersModule {}

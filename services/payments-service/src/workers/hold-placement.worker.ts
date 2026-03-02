@@ -85,7 +85,10 @@ export class HoldPlacementWorker implements OnModuleInit, OnModuleDestroy {
       this.consecutiveFailures = 0;
     } catch (error) {
       this.consecutiveFailures++;
-      this.logger.error(error, `HoldPlacementWorker tick failed (consecutive: ${this.consecutiveFailures})`);
+      this.logger.error(
+        error,
+        `HoldPlacementWorker tick failed (consecutive: ${this.consecutiveFailures})`,
+      );
     } finally {
       this.running = false;
       this.scheduleTick(this.getBackoffDelay());
@@ -154,7 +157,11 @@ export class HoldPlacementWorker implements OnModuleInit, OnModuleDestroy {
           {
             paymentIntentId: row.id,
             type: 'HOLD_PLACED',
-            payloadJson: { pspIntentId, triggeredBy: 'hold_placement_worker', bookingId: row.booking_id },
+            payloadJson: {
+              pspIntentId,
+              triggeredBy: 'hold_placement_worker',
+              bookingId: row.booking_id,
+            },
           },
           tx,
         );

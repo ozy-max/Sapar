@@ -50,6 +50,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_TIMEOUT_MS: 500
       TRUST_PROXY: 'false'
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      ALLOWED_ORIGINS: 'http://localhost:3000,http://localhost:8080'
     depends_on:
       postgres:
         condition: service_healthy

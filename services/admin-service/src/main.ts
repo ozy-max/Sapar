@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { json } from 'express';
+import { json, type Request as ExpressRequest } from 'express';
+import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './adapters/http/filters/all-exceptions.filter';
 import { requestIdMiddleware } from './adapters/http/middleware/request-id.middleware';
@@ -13,10 +14,17 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    rawBody: true,
+    bodyParser: false,
   });
 
-  app.use(json({ limit: '1mb' }));
+  app.use(
+    json({
+      limit: '1mb',
+      verify: (req: IncomingMessage, _res: ServerResponse, buf: Buffer) => {
+        (req as ExpressRequest & { rawBody: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(requestIdMiddleware);
   app.use(httpMetricsMiddleware);
   app.useLogger(app.get(Logger));

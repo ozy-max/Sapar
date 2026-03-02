@@ -69,14 +69,22 @@ export class CaptureIntentUseCase {
 
         await this.intentRepo.updateStatus(intentId, 'CAPTURED', tx);
         await this.eventRepo.create(
-          { paymentIntentId: intentId, type: 'CAPTURED', payloadJson: { pspIntentId: row.psp_intent_id } },
+          {
+            paymentIntentId: intentId,
+            type: 'CAPTURED',
+            payloadJson: { pspIntentId: row.psp_intent_id },
+          },
           tx,
         );
         await this.receiptRepo.create(intentId, tx);
         await this.outboxService.publish(
           {
             eventType: 'payment.captured',
-            payload: { paymentIntentId: intentId, bookingId: row.booking_id, amountKgs: row.amount_kgs },
+            payload: {
+              paymentIntentId: intentId,
+              bookingId: row.booking_id,
+              amountKgs: row.amount_kgs,
+            },
             traceId,
           },
           tx,

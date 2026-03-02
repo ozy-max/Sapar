@@ -39,16 +39,36 @@ describe('SearchCacheService', () => {
     });
 
     it('should round lat/lon to 4 decimal places', () => {
-      const params1: SearchCacheParams = { fromLat: 42.87461234, fromLon: 74.56981234, limit: 20, offset: 0 };
-      const params2: SearchCacheParams = { fromLat: 42.87462999, fromLon: 74.56982999, limit: 20, offset: 0 };
+      const params1: SearchCacheParams = {
+        fromLat: 42.87461234,
+        fromLon: 74.56981234,
+        limit: 20,
+        offset: 0,
+      };
+      const params2: SearchCacheParams = {
+        fromLat: 42.87462999,
+        fromLon: 74.56982999,
+        limit: 20,
+        offset: 0,
+      };
       expect(SearchCacheService.normalizeKey(params1)).toBe(
         SearchCacheService.normalizeKey(params2),
       );
     });
 
     it('should produce different keys for values rounding to different 4th decimal', () => {
-      const params1: SearchCacheParams = { fromLat: 42.87461, fromLon: 74.5698, limit: 20, offset: 0 };
-      const params2: SearchCacheParams = { fromLat: 42.87471, fromLon: 74.5698, limit: 20, offset: 0 };
+      const params1: SearchCacheParams = {
+        fromLat: 42.87461,
+        fromLon: 74.5698,
+        limit: 20,
+        offset: 0,
+      };
+      const params2: SearchCacheParams = {
+        fromLat: 42.87471,
+        fromLon: 74.5698,
+        limit: 20,
+        offset: 0,
+      };
       expect(SearchCacheService.normalizeKey(params1)).not.toBe(
         SearchCacheService.normalizeKey(params2),
       );
@@ -85,7 +105,9 @@ describe('SearchCacheService', () => {
     });
 
     it('should return false with fromCity', () => {
-      expect(SearchCacheService.isTooBroad({ fromCity: 'Бишкек', limit: 50, offset: 0 })).toBe(false);
+      expect(SearchCacheService.isTooBroad({ fromCity: 'Бишкек', limit: 50, offset: 0 })).toBe(
+        false,
+      );
     });
 
     it('should return false with fromCityId', () => {
@@ -99,15 +121,11 @@ describe('SearchCacheService', () => {
     });
 
     it('should return false with fromLat', () => {
-      expect(
-        SearchCacheService.isTooBroad({ fromLat: 42.87, limit: 50, offset: 0 }),
-      ).toBe(false);
+      expect(SearchCacheService.isTooBroad({ fromLat: 42.87, limit: 50, offset: 0 })).toBe(false);
     });
 
     it('should return false with bboxMinLat', () => {
-      expect(
-        SearchCacheService.isTooBroad({ bboxMinLat: 40.0, limit: 50, offset: 0 }),
-      ).toBe(false);
+      expect(SearchCacheService.isTooBroad({ bboxMinLat: 40.0, limit: 50, offset: 0 })).toBe(false);
     });
   });
 

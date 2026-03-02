@@ -67,13 +67,21 @@ export class RefundIntentUseCase {
 
         await this.intentRepo.updateStatus(intentId, 'REFUNDED', tx);
         await this.eventRepo.create(
-          { paymentIntentId: intentId, type: 'REFUNDED', payloadJson: { pspIntentId: row.psp_intent_id } },
+          {
+            paymentIntentId: intentId,
+            type: 'REFUNDED',
+            payloadJson: { pspIntentId: row.psp_intent_id },
+          },
           tx,
         );
         await this.outboxService.publish(
           {
             eventType: 'payment.refunded',
-            payload: { paymentIntentId: intentId, bookingId: row.booking_id, amountKgs: row.amount_kgs },
+            payload: {
+              paymentIntentId: intentId,
+              bookingId: row.booking_id,
+              amountKgs: row.amount_kgs,
+            },
             traceId,
           },
           tx,

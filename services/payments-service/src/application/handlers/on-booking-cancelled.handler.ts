@@ -174,10 +174,7 @@ export class OnBookingCancelledHandler implements SideEffectHandler {
     }
 
     const env = loadEnv();
-    const pspStatus = await withTimeout(
-      this.psp.getStatus(intent.pspIntentId),
-      env.PSP_TIMEOUT_MS,
-    );
+    const pspStatus = await withTimeout(this.psp.getStatus(intent.pspIntentId), env.PSP_TIMEOUT_MS);
 
     if (pspStatus.status === 'refunded') {
       this.logger.warn({
@@ -219,8 +216,12 @@ export class OnBookingCancelledHandler implements SideEffectHandler {
 
         await this.intentRepo.updateStatus(intent.id, 'REFUNDED', tx);
         await this.createEventAndPublish(
-          intent.id, 'REFUNDED', 'payment.refunded',
-          { ...p, amountKgs: intent.amountKgs }, event, tx,
+          intent.id,
+          'REFUNDED',
+          'payment.refunded',
+          { ...p, amountKgs: intent.amountKgs },
+          event,
+          tx,
         );
       },
       { timeout: 10_000 },

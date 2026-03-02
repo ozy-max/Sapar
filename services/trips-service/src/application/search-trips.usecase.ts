@@ -152,9 +152,7 @@ export class SearchTripsUseCase {
    * If caller provides fromCityId but no coords, resolve city to get lat/lon.
    * If caller provides fromCity string, try to resolve to cityId for better indexing.
    */
-  private async resolveCityCoords(
-    input: SearchTripsInput,
-  ): Promise<{
+  private async resolveCityCoords(input: SearchTripsInput): Promise<{
     fromCityId?: string;
     toCityId?: string;
     fromLat?: number;

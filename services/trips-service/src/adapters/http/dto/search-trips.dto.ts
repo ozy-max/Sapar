@@ -24,18 +24,25 @@ export const searchTripsSchema = z
     limit: z.coerce.number().int().positive().max(100).default(50),
     offset: z.coerce.number().int().nonnegative().default(0),
   })
-  .refine(
-    (d) => d.fromCity || d.fromCityId || d.fromLat != null || d.bboxMinLat != null,
-    { message: 'At least one location filter is required (fromCity, fromCityId, fromLat, or bboxMinLat)', path: ['fromCity'] },
-  );
+  .refine((d) => d.fromCity || d.fromCityId || d.fromLat != null || d.bboxMinLat != null, {
+    message:
+      'At least one location filter is required (fromCity, fromCityId, fromLat, or bboxMinLat)',
+    path: ['fromCity'],
+  });
 
 export type SearchTripsInput = z.infer<typeof searchTripsSchema>;
 
 export class SearchTripsQueryDto {
-  @ApiPropertyOptional({ example: 'Бишкек', description: 'Departure city name (deprecated, use fromCityId)' })
+  @ApiPropertyOptional({
+    example: 'Бишкек',
+    description: 'Departure city name (deprecated, use fromCityId)',
+  })
   fromCity?: string;
 
-  @ApiPropertyOptional({ example: 'Ош', description: 'Arrival city name (deprecated, use toCityId)' })
+  @ApiPropertyOptional({
+    example: 'Ош',
+    description: 'Arrival city name (deprecated, use toCityId)',
+  })
   toCity?: string;
 
   @ApiPropertyOptional({ description: 'Departure city UUID' })

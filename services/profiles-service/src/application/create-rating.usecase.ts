@@ -4,11 +4,7 @@ import { PrismaService } from '../adapters/db/prisma.service';
 import { RatingRepository } from '../adapters/db/rating.repository';
 import { RatingEligibilityRepository } from '../adapters/db/rating-eligibility.repository';
 import { loadEnv } from '../config/env';
-import {
-  NotEligibleError,
-  RatingWindowExpiredError,
-  DuplicateRatingError,
-} from '../shared/errors';
+import { NotEligibleError, RatingWindowExpiredError, DuplicateRatingError } from '../shared/errors';
 import {
   recordRatingCreated,
   recordRatingRejected,

@@ -33,18 +33,28 @@ const searchQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).optional(),
     offset: z.coerce.number().int().min(0).optional(),
   })
-  .refine(
-    (d) => d.fromCity || d.fromCityId || d.fromLat != null || d.bboxMinLat != null,
-    { message: 'At least one location filter required', path: ['fromCity'] },
-  );
+  .refine((d) => d.fromCity || d.fromCityId || d.fromLat != null || d.bboxMinLat != null, {
+    message: 'At least one location filter required',
+    path: ['fromCity'],
+  });
 
 @ApiTags('BFF v1 — Trips')
 @Controller('v1/trips')
 export class TripsSearchController {
   @Get('search')
   @ApiOperation({ summary: 'Search trips (passenger, public, geo-aware)' })
-  @ApiQuery({ name: 'fromCity', required: false, example: 'Бишкек', description: 'Deprecated: use fromCityId' })
-  @ApiQuery({ name: 'toCity', required: false, example: 'Ош', description: 'Deprecated: use toCityId' })
+  @ApiQuery({
+    name: 'fromCity',
+    required: false,
+    example: 'Бишкек',
+    description: 'Deprecated: use fromCityId',
+  })
+  @ApiQuery({
+    name: 'toCity',
+    required: false,
+    example: 'Ош',
+    description: 'Deprecated: use toCityId',
+  })
   @ApiQuery({ name: 'fromCityId', required: false })
   @ApiQuery({ name: 'toCityId', required: false })
   @ApiQuery({ name: 'fromLat', required: false, example: 42.8746 })

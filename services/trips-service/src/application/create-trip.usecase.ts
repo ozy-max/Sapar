@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TripRepository } from '../adapters/db/trip.repository';
+import { CityRepository } from '../adapters/db/city.repository';
 import { ValidationError } from '../shared/errors';
 
 interface CreateTripInput {
@@ -27,13 +28,21 @@ interface CreateTripOutput {
 export class CreateTripUseCase {
   private readonly logger = new Logger(CreateTripUseCase.name);
 
-  constructor(private readonly tripRepo: TripRepository) {}
+  constructor(
+    private readonly tripRepo: TripRepository,
+    private readonly cityRepo: CityRepository,
+  ) {}
 
   async execute(input: CreateTripInput): Promise<CreateTripOutput> {
     const departAt = new Date(input.departAt);
     if (isNaN(departAt.getTime()) || departAt.getTime() <= Date.now()) {
       throw new ValidationError({ departAt: 'departAt must be a valid future date' });
     }
+
+    const [fromCityRecord, toCityRecord] = await Promise.all([
+      this.cityRepo.findByName(input.fromCity),
+      this.cityRepo.findByName(input.toCity),
+    ]);
 
     const trip = await this.tripRepo.create({
       driverId: input.driverId,
@@ -42,6 +51,12 @@ export class CreateTripUseCase {
       departAt,
       seatsTotal: input.seatsTotal,
       priceKgs: input.priceKgs,
+      fromCityId: fromCityRecord?.id,
+      toCityId: toCityRecord?.id,
+      fromLat: fromCityRecord?.lat,
+      fromLon: fromCityRecord?.lon,
+      toLat: toCityRecord?.lat,
+      toLon: toCityRecord?.lon,
     });
 
     this.logger.log(`Trip created: tripId=${trip.id} driverId=${trip.driverId}`);

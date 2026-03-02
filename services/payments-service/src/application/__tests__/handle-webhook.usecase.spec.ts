@@ -138,7 +138,10 @@ describe('HandleWebhookUseCase', () => {
 
       await useCase.execute(payload);
 
-      expect(intentRepo.findByPspIntentIdForUpdate).toHaveBeenCalledWith('psp-1', expect.anything());
+      expect(intentRepo.findByPspIntentIdForUpdate).toHaveBeenCalledWith(
+        'psp-1',
+        expect.anything(),
+      );
       expect(intentRepo.updateStatus).toHaveBeenCalledWith(
         'intent-1',
         PaymentIntentStatus.HOLD_PLACED,

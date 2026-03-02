@@ -16,10 +16,7 @@ export interface CreateRatingData {
 export class RatingRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createWithAggregate(
-    data: CreateRatingData,
-    tx: Prisma.TransactionClient,
-  ): Promise<Rating> {
+  async createWithAggregate(data: CreateRatingData, tx: Prisma.TransactionClient): Promise<Rating> {
     const rating = await tx.rating.create({ data });
 
     const rows = await tx.$queryRaw<

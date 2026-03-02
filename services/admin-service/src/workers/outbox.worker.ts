@@ -196,9 +196,7 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
           lastErrorMsg = err instanceof Error ? err.message : String(err);
         }
         recordOutboxDeliveryError(targetUrl);
-        outboundFailuresTotal
-          .labels(SERVICE_NAME, targetLabel(targetUrl), 'outbox_delivery')
-          .inc();
+        outboundFailuresTotal.labels(SERVICE_NAME, targetLabel(targetUrl), 'outbox_delivery').inc();
       }
     }
 
@@ -217,7 +215,9 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
             await this.outboxRepo.markFailedFinal(event.id, nextTry, lastErrorMsg, tx);
             recordOutboxEvent(event.event_type, 'failed_final');
             this.logger.error({
-              msg: hasClientError ? 'Event delivery rejected (4xx), not retrying' : 'Event delivery failed permanently',
+              msg: hasClientError
+                ? 'Event delivery rejected (4xx), not retrying'
+                : 'Event delivery failed permanently',
               eventId: event.id,
               eventType: event.event_type,
               attempt: nextTry,

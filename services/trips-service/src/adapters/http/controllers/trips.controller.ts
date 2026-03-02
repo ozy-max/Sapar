@@ -142,7 +142,12 @@ export class TripsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Complete a trip (driver only)' })
   @ApiParam({ name: 'tripId', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, schema: { example: { tripId: 'uuid', status: 'COMPLETED', completedAt: '2026-01-01T00:00:00.000Z' } } })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      example: { tripId: 'uuid', status: 'COMPLETED', completedAt: '2026-01-01T00:00:00.000Z' },
+    },
+  })
   @ApiResponse({ status: 401, type: ErrorResponseDto })
   @ApiResponse({ status: 403, type: ErrorResponseDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })

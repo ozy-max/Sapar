@@ -67,7 +67,10 @@ export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
       this.consecutiveFailures = 0;
     } catch (error) {
       this.consecutiveFailures++;
-      this.logger.error(error, `Receipt worker tick failed (consecutive: ${this.consecutiveFailures})`);
+      this.logger.error(
+        error,
+        `Receipt worker tick failed (consecutive: ${this.consecutiveFailures})`,
+      );
     } finally {
       this.running = false;
       this.scheduleTick(this.getBackoffDelay());

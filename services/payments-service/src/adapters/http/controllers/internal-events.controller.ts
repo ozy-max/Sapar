@@ -4,10 +4,7 @@ import { z } from 'zod';
 import { PrismaService } from '../../db/prisma.service';
 import { ConsumedEventRepository } from '../../db/consumed-event.repository';
 import { EventEnvelope } from '../../../shared/event-envelope';
-import {
-  AnyEventHandler,
-  isSideEffectHandler,
-} from '../../../shared/event-handler.interface';
+import { AnyEventHandler, isSideEffectHandler } from '../../../shared/event-handler.interface';
 import { HmacGuard } from '../guards/hmac.guard';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { HandleBookingCreatedHandler } from '../../../application/handlers/handle-booking-created.handler';
@@ -91,10 +88,7 @@ export class InternalEventsController {
               tx,
             );
           } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
               return;
             }
             throw error;
@@ -133,10 +127,7 @@ export class InternalEventsController {
       });
       return false;
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         return true;
       }
       throw error;

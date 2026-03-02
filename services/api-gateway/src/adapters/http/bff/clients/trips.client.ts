@@ -105,7 +105,11 @@ function timeoutMs(): number {
   return loadEnv().BFF_TIMEOUT_MS;
 }
 
-function appendOptional(qs: URLSearchParams, key: string, value: string | number | undefined | null): void {
+function appendOptional(
+  qs: URLSearchParams,
+  key: string,
+  value: string | number | undefined | null,
+): void {
   if (value !== undefined && value !== null) qs.set(key, String(value));
 }
 

@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Put, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -22,11 +13,7 @@ import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { GetProfileUseCase } from '../../../application/get-profile.usecase';
 import { UpdateProfileUseCase } from '../../../application/update-profile.usecase';
 import { GetRatingsUseCase } from '../../../application/get-ratings.usecase';
-import {
-  updateProfileSchema,
-  UpdateProfileInput,
-  ProfileResponseDto,
-} from '../dto/profile.dto';
+import { updateProfileSchema, UpdateProfileInput, ProfileResponseDto } from '../dto/profile.dto';
 import { RatingsListResponseDto } from '../dto/rating.dto';
 import { ErrorResponseDto } from '../dto/error.dto';
 
@@ -44,9 +31,7 @@ export class ProfilesController {
   @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: ProfileResponseDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })
-  async get(
-    @Param('userId', ParseUUIDPipe) userId: string,
-  ): Promise<ProfileResponseDto> {
+  async get(@Param('userId', ParseUUIDPipe) userId: string): Promise<ProfileResponseDto> {
     return this.getProfile.execute(userId);
   }
 

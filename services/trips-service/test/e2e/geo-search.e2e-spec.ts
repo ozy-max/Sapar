@@ -72,9 +72,14 @@ describe('Geo Search E2E', () => {
   describe('search by cityId', () => {
     it('should return trips matching fromCityId', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -90,9 +95,14 @@ describe('Geo Search E2E', () => {
 
     it('should return empty for non-matching cityId', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -108,9 +118,14 @@ describe('Geo Search E2E', () => {
   describe('backward compatibility (city name)', () => {
     it('should find trips by fromCity/toCity string names', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -126,9 +141,14 @@ describe('Geo Search E2E', () => {
   describe('radius filter', () => {
     it('should find trips within radius', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -145,9 +165,14 @@ describe('Geo Search E2E', () => {
 
     it('should NOT find trips outside radius', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -167,9 +192,14 @@ describe('Geo Search E2E', () => {
   describe('cache behavior', () => {
     it('should return same results on cache hit (second identical request)', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res1 = await request(ctx.app.getHttpServer())
@@ -191,9 +221,14 @@ describe('Geo Search E2E', () => {
   describe('redis down fallback', () => {
     it('should return results even when Redis is unavailable', async () => {
       await createTripWithCity(
-        bishkekCityId, oshCityId,
-        'Бишкек', 'Ош',
-        42.8746, 74.5698, 40.5283, 72.7985,
+        bishkekCityId,
+        oshCityId,
+        'Бишкек',
+        'Ош',
+        42.8746,
+        74.5698,
+        40.5283,
+        72.7985,
       );
 
       const res = await request(ctx.app.getHttpServer())
@@ -263,10 +298,7 @@ describe('Geo Search E2E', () => {
   // ─── 7) Validation: at least one location filter required ─────
   describe('validation', () => {
     it('should return 400 when no location filter provided', async () => {
-      await request(ctx.app.getHttpServer())
-        .get('/search')
-        .query({ minSeats: 1 })
-        .expect(400);
+      await request(ctx.app.getHttpServer()).get('/search').query({ minSeats: 1 }).expect(400);
     });
   });
 

@@ -109,7 +109,13 @@ export class ProcessNotificationsUseCase {
     let sendError: string | undefined;
 
     try {
-      sendResult = await this.sendViaProvider(channel, row.user_id, template, payload, providerTimeoutMs);
+      sendResult = await this.sendViaProvider(
+        channel,
+        row.user_id,
+        template,
+        payload,
+        providerTimeoutMs,
+      );
     } catch (error) {
       sendError = error instanceof Error ? error.message : String(error);
     }
@@ -201,11 +207,7 @@ export class ProcessNotificationsUseCase {
     );
   }
 
-  private async markFailedFinal(
-    notifId: string,
-    nextTry: number,
-    errorMsg: string,
-  ): Promise<void> {
+  private async markFailedFinal(notifId: string, nextTry: number, errorMsg: string): Promise<void> {
     await this.prisma.$transaction(
       async (tx) => {
         await this.notifRepo.updateStatus(

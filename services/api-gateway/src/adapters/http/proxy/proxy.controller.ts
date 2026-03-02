@@ -22,7 +22,7 @@ export class ProxyController {
     this.breakers = this.initBreakers();
   }
 
-  @All('identity/*')
+  @All(['identity', 'identity/*'])
   @ApiOperation({ summary: 'Proxy to Identity service (e.g. GET /identity/ping)' })
   @ApiResponse({ status: 200, description: 'Proxied response from Identity' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
@@ -32,7 +32,7 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
-  @All('trips/*')
+  @All(['trips', 'trips/*'])
   @ApiOperation({ summary: 'Proxy to Trips service (e.g. GET /trips/ping)' })
   @ApiResponse({ status: 200, description: 'Proxied response from Trips' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
@@ -42,7 +42,7 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
-  @All('payments/*')
+  @All(['payments', 'payments/*'])
   @ApiOperation({ summary: 'Proxy to Payments service (e.g. GET /payments/ping)' })
   @ApiResponse({ status: 200, description: 'Proxied response from Payments' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
@@ -52,7 +52,7 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
-  @All('admin/*')
+  @All(['admin', 'admin/*'])
   @ApiOperation({ summary: 'Proxy to Admin service (e.g. GET /admin/configs)' })
   @ApiResponse({ status: 200, description: 'Proxied response from Admin' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })
@@ -62,7 +62,7 @@ export class ProxyController {
     await this.dispatchProxy(req, res);
   }
 
-  @All('profiles/*')
+  @All(['profiles', 'profiles/*'])
   @ApiOperation({ summary: 'Proxy to Profiles service (e.g. GET /profiles/:userId)' })
   @ApiResponse({ status: 200, description: 'Proxied response from Profiles' })
   @ApiResponse({ status: 502, description: 'Downstream unavailable' })

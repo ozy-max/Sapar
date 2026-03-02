@@ -87,10 +87,7 @@ export class HandleWebhookUseCase {
       // to prevent TOCTOU races between concurrent webhooks.
       await this.prisma.$transaction(
         async (tx) => {
-          const locked = await this.intentRepo.findByPspIntentIdForUpdate(
-            payload.pspIntentId,
-            tx,
-          );
+          const locked = await this.intentRepo.findByPspIntentIdForUpdate(payload.pspIntentId, tx);
           if (!locked) {
             throw new PaymentIntentNotFoundError();
           }
