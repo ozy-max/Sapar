@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TripRepository } from '../adapters/db/trip.repository';
+import { ValidationError } from '../shared/errors';
 
 interface CreateTripInput {
   driverId: string;
@@ -29,11 +30,16 @@ export class CreateTripUseCase {
   constructor(private readonly tripRepo: TripRepository) {}
 
   async execute(input: CreateTripInput): Promise<CreateTripOutput> {
+    const departAt = new Date(input.departAt);
+    if (isNaN(departAt.getTime()) || departAt.getTime() <= Date.now()) {
+      throw new ValidationError({ departAt: 'departAt must be a valid future date' });
+    }
+
     const trip = await this.tripRepo.create({
       driverId: input.driverId,
       fromCity: input.fromCity,
       toCity: input.toCity,
-      departAt: new Date(input.departAt),
+      departAt,
       seatsTotal: input.seatsTotal,
       priceKgs: input.priceKgs,
     });

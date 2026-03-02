@@ -6,6 +6,7 @@ import { GetNotificationUseCase } from '../../application/get-notification.useca
 import { CancelNotificationUseCase } from '../../application/cancel-notification.usecase';
 import { HandlePaymentHoldPlacedHandler } from '../../application/handlers/handle-payment-hold-placed.handler';
 import { HandlePaymentCapturedHandler } from '../../application/handlers/handle-payment-captured.handler';
+import { HandleBookingCancelledHandler } from '../../application/handlers/handle-booking-cancelled.handler';
 import { HmacGuard } from './guards/hmac.guard';
 
 @Module({
@@ -16,6 +17,7 @@ import { HmacGuard } from './guards/hmac.guard';
     CancelNotificationUseCase,
     HandlePaymentHoldPlacedHandler,
     HandlePaymentCapturedHandler,
+    HandleBookingCancelledHandler,
     HmacGuard,
   ],
 })

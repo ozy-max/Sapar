@@ -3,11 +3,16 @@ import { ProcessReceiptsUseCase } from '../application/process-receipts.usecase'
 import { loadEnv } from '../config/env';
 import { recordReceiptStatus } from '../observability/receipt-metrics';
 
+const MAX_BACKOFF_MS = 30_000;
+const BASE_BACKOFF_MS = 1_000;
+
 @Injectable()
 export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ReceiptWorker.name);
-  private intervalHandle?: ReturnType<typeof setInterval>;
+  private timeoutHandle?: ReturnType<typeof setTimeout>;
   private running = false;
+  private currentTick?: Promise<void>;
+  private consecutiveFailures = 0;
 
   constructor(private readonly processReceipts: ProcessReceiptsUseCase) {}
 
@@ -19,19 +24,34 @@ export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(`Starting receipt worker, poll interval: ${env.RECEIPT_POLL_INTERVAL_MS}ms`);
-    this.intervalHandle = setInterval(() => {
-      void this.tick();
-    }, env.RECEIPT_POLL_INTERVAL_MS);
+    this.scheduleTick(env.RECEIPT_POLL_INTERVAL_MS);
   }
 
-  onModuleDestroy(): void {
-    if (this.intervalHandle) {
-      clearInterval(this.intervalHandle);
-      this.intervalHandle = undefined;
+  async onModuleDestroy(): Promise<void> {
+    if (this.timeoutHandle) {
+      clearTimeout(this.timeoutHandle);
+      this.timeoutHandle = undefined;
+    }
+    if (this.currentTick) {
+      await this.currentTick;
     }
   }
 
-  async tick(): Promise<void> {
+  private scheduleTick(delayMs: number): void {
+    this.timeoutHandle = setTimeout(() => {
+      this.currentTick = this.doTick();
+    }, delayMs);
+  }
+
+  private getBackoffDelay(): number {
+    if (this.consecutiveFailures === 0) return loadEnv().RECEIPT_POLL_INTERVAL_MS;
+    const exponential = BASE_BACKOFF_MS * Math.pow(2, Math.min(this.consecutiveFailures - 1, 14));
+    const capped = Math.min(exponential, MAX_BACKOFF_MS);
+    const jitter = capped * (0.5 + Math.random() * 0.5);
+    return Math.floor(jitter);
+  }
+
+  private async doTick(): Promise<void> {
     if (this.running) return;
     this.running = true;
     try {
@@ -44,10 +64,13 @@ export class ReceiptWorker implements OnModuleInit, OnModuleDestroy {
           `Processed ${result.total} receipt(s): issued=${result.issued}, retried=${result.retried}, failedFinal=${result.failedFinal}`,
         );
       }
+      this.consecutiveFailures = 0;
     } catch (error) {
-      this.logger.error(error, 'Receipt worker tick failed');
+      this.consecutiveFailures++;
+      this.logger.error(error, `Receipt worker tick failed (consecutive: ${this.consecutiveFailures})`);
     } finally {
       this.running = false;
+      this.scheduleTick(this.getBackoffDelay());
     }
   }
 }

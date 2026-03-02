@@ -7,6 +7,7 @@ import { PrismaService } from '../../../src/adapters/db/prisma.service';
 import { FakePspAdapter } from '../../../src/adapters/psp/fake-psp.adapter';
 import { FakeReceiptIssuer } from '../../../src/adapters/psp/fake-psp.adapter';
 import { ProcessReceiptsUseCase } from '../../../src/application/process-receipts.usecase';
+import { HoldPlacementWorker } from '../../../src/workers/hold-placement.worker';
 
 export interface TestContext {
   app: INestApplication;
@@ -14,6 +15,7 @@ export interface TestContext {
   fakePsp: FakePspAdapter;
   fakeReceiptIssuer: FakeReceiptIssuer;
   processReceipts: ProcessReceiptsUseCase;
+  holdWorker: HoldPlacementWorker;
 }
 
 export async function createTestApp(): Promise<TestContext> {
@@ -30,6 +32,7 @@ export async function createTestApp(): Promise<TestContext> {
   const fakePsp = app.get(FakePspAdapter);
   const fakeReceiptIssuer = app.get(FakeReceiptIssuer);
   const processReceipts = app.get(ProcessReceiptsUseCase);
+  const holdWorker = app.get(HoldPlacementWorker);
 
-  return { app, prisma, fakePsp, fakeReceiptIssuer, processReceipts };
+  return { app, prisma, fakePsp, fakeReceiptIssuer, processReceipts, holdWorker };
 }

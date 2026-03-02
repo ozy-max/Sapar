@@ -15,14 +15,18 @@ export class DeleteRatingUseCase {
   ) {}
 
   async execute(ratingId: string): Promise<{ id: string; status: string }> {
-    const existing = await this.ratingRepo.findById(ratingId);
-    if (!existing || existing.status === RatingStatus.DELETED) {
-      throw new RatingNotFoundError();
-    }
-
     await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
-        await this.ratingRepo.softDelete(ratingId, existing.ratedUserId, existing.score, tx);
+        const rows = await tx.$queryRaw<
+          Array<{ id: string; status: string; rated_user_id: string; score: number }>
+        >`SELECT id, status, rated_user_id, score FROM ratings WHERE id = ${ratingId}::uuid FOR UPDATE`;
+
+        const existing = rows[0];
+        if (!existing || existing.status === RatingStatus.DELETED) {
+          throw new RatingNotFoundError();
+        }
+
+        await this.ratingRepo.softDelete(ratingId, existing.rated_user_id, existing.score, tx);
       },
       { timeout: 10_000 },
     );

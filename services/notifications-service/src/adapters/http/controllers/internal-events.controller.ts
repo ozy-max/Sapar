@@ -9,6 +9,7 @@ import { HmacGuard } from '../guards/hmac.guard';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { HandlePaymentHoldPlacedHandler } from '../../../application/handlers/handle-payment-hold-placed.handler';
 import { HandlePaymentCapturedHandler } from '../../../application/handlers/handle-payment-captured.handler';
+import { HandleBookingCancelledHandler } from '../../../application/handlers/handle-booking-cancelled.handler';
 import { recordConsumerEvent } from '../../../observability/outbox-metrics';
 
 const eventEnvelopeSchema = z.object({
@@ -31,10 +32,13 @@ export class InternalEventsController {
     private readonly consumedRepo: ConsumedEventRepository,
     paymentHoldPlacedHandler: HandlePaymentHoldPlacedHandler,
     paymentCapturedHandler: HandlePaymentCapturedHandler,
+    bookingCancelledHandler: HandleBookingCancelledHandler,
   ) {
     this.handlerMap = new Map<string, EventHandler>([
       [paymentHoldPlacedHandler.eventType, paymentHoldPlacedHandler],
       [paymentCapturedHandler.eventType, paymentCapturedHandler],
+      [bookingCancelledHandler.eventType, bookingCancelledHandler],
+      ['booking.expired', bookingCancelledHandler],
     ]);
   }
 

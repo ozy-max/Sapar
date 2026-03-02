@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { json } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './adapters/http/filters/all-exceptions.filter';
 import { requestIdMiddleware } from './adapters/http/middleware/request-id.middleware';
@@ -12,6 +13,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
 
+  app.use(json({ limit: '1mb' }));
   app.use(requestIdMiddleware);
   app.use(httpMetricsMiddleware);
   app.useLogger(app.get(Logger));

@@ -82,6 +82,13 @@ export class ReceiptRepository {
     });
   }
 
+  async claim(id: string, claimUntil: Date, tx: Prisma.TransactionClient): Promise<void> {
+    await tx.receipt.update({
+      where: { id },
+      data: { nextRetryAt: claimUntil },
+    });
+  }
+
   async findByPaymentIntentIds(paymentIntentIds: string[]): Promise<Receipt[]> {
     if (paymentIntentIds.length === 0) return [];
     return this.prisma.receipt.findMany({

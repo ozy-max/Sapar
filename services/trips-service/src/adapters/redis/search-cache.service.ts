@@ -68,7 +68,7 @@ export class SearchCacheService {
     return `trips:search:${hash}`;
   }
 
-  static isTooBoard(params: SearchCacheParams): boolean {
+  static isTooBroad(params: SearchCacheParams): boolean {
     const hasLocationFilter =
       params.fromCityId ||
       params.toCityId ||

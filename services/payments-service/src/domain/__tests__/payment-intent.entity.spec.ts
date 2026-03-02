@@ -3,9 +3,13 @@ import { PaymentIntentStatus, canTransition } from '../payment-intent.entity';
 describe('PaymentIntentStatus state machine', () => {
   describe('valid transitions', () => {
     const validCases: [PaymentIntentStatus, PaymentIntentStatus][] = [
+      [PaymentIntentStatus.CREATED, PaymentIntentStatus.HOLD_REQUESTED],
       [PaymentIntentStatus.CREATED, PaymentIntentStatus.HOLD_PLACED],
       [PaymentIntentStatus.CREATED, PaymentIntentStatus.CANCELLED],
       [PaymentIntentStatus.CREATED, PaymentIntentStatus.FAILED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.HOLD_PLACED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.CANCELLED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.FAILED],
       [PaymentIntentStatus.HOLD_PLACED, PaymentIntentStatus.CAPTURED],
       [PaymentIntentStatus.HOLD_PLACED, PaymentIntentStatus.CANCELLED],
       [PaymentIntentStatus.HOLD_PLACED, PaymentIntentStatus.FAILED],
@@ -25,6 +29,10 @@ describe('PaymentIntentStatus state machine', () => {
       [PaymentIntentStatus.FAILED, PaymentIntentStatus.HOLD_PLACED],
       [PaymentIntentStatus.CAPTURED, PaymentIntentStatus.HOLD_PLACED],
       [PaymentIntentStatus.CAPTURED, PaymentIntentStatus.CAPTURED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.CREATED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.HOLD_REQUESTED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.CAPTURED],
+      [PaymentIntentStatus.HOLD_REQUESTED, PaymentIntentStatus.REFUNDED],
     ];
 
     it.each(invalidCases)('%s → %s is forbidden', (from, to) => {

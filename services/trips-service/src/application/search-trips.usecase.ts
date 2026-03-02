@@ -74,7 +74,7 @@ export class SearchTripsUseCase {
 
       this.logger.log({ msg: 'search_start', queryShape, traceId });
 
-      if (!SearchCacheService.isTooBoard(cacheParams)) {
+      if (!SearchCacheService.isTooBroad(cacheParams)) {
         const cacheKey = SearchCacheService.normalizeKey(cacheParams);
         const cached = await this.cache.get<SearchTripsOutput>(cacheKey);
         if (cached) {
@@ -133,7 +133,7 @@ export class SearchTripsUseCase {
 
       const result: SearchTripsOutput = { items, count: totalCount };
 
-      if (!SearchCacheService.isTooBoard(cacheParams)) {
+      if (!SearchCacheService.isTooBroad(cacheParams)) {
         const cacheKey = SearchCacheService.normalizeKey(cacheParams);
         void this.cache.set(cacheKey, result);
       }

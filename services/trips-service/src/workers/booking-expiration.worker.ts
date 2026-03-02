@@ -6,12 +6,16 @@ import { OutboxService } from '../shared/outbox.service';
 import { loadEnv } from '../config/env';
 import { recordBookingExpired, recordBookingTransition } from '../observability/saga-metrics';
 
+const MAX_BACKOFF_MS = 30_000;
+const BASE_BACKOFF_MS = 1_000;
+
 @Injectable()
 export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BookingExpirationWorker.name);
-  private intervalHandle?: ReturnType<typeof setInterval>;
+  private intervalHandle?: ReturnType<typeof setTimeout>;
   private currentTick?: Promise<void>;
   private running = false;
+  private consecutiveFailures = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -28,17 +32,29 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       `Starting expiration worker, interval: ${env.EXPIRATION_WORKER_INTERVAL_MS}ms, TTL: ${env.BOOKING_TTL_SEC}s`,
     );
-    this.intervalHandle = setInterval(() => {
-      this.currentTick = this.tick();
-    }, env.EXPIRATION_WORKER_INTERVAL_MS);
+    this.scheduleTick(env.EXPIRATION_WORKER_INTERVAL_MS);
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.intervalHandle) {
-      clearInterval(this.intervalHandle);
+      clearTimeout(this.intervalHandle);
       this.intervalHandle = undefined;
     }
     if (this.currentTick) await this.currentTick;
+  }
+
+  private scheduleTick(delayMs: number): void {
+    this.intervalHandle = setTimeout(() => {
+      this.currentTick = this.tick();
+    }, delayMs);
+  }
+
+  private getBackoffDelay(): number {
+    if (this.consecutiveFailures === 0) return loadEnv().EXPIRATION_WORKER_INTERVAL_MS;
+    const exponential = BASE_BACKOFF_MS * Math.pow(2, Math.min(this.consecutiveFailures - 1, 14));
+    const capped = Math.min(exponential, MAX_BACKOFF_MS);
+    const jitter = capped * (0.5 + Math.random() * 0.5);
+    return Math.floor(jitter);
   }
 
   async tick(): Promise<void> {
@@ -56,10 +72,16 @@ export class BookingExpirationWorker implements OnModuleInit, OnModuleDestroy {
           this.logger.error(error, `Failed to expire booking ${id}`);
         }
       }
+      this.consecutiveFailures = 0;
     } catch (error) {
-      this.logger.error(error, 'Expiration worker tick failed');
+      this.consecutiveFailures++;
+      this.logger.error(
+        error,
+        `Expiration worker tick failed (consecutive: ${this.consecutiveFailures})`,
+      );
     } finally {
       this.running = false;
+      this.scheduleTick(this.getBackoffDelay());
     }
   }
 

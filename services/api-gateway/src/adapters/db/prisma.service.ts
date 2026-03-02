@@ -32,7 +32,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   async checkConnection(timeoutMs: number = DB_CHECK_TIMEOUT_MS): Promise<boolean> {
     try {
       await Promise.race([
-        this.client.$queryRawUnsafe('SELECT 1'),
+        this.client.$queryRaw`SELECT 1`,
         new Promise<never>((_resolve, reject) =>
           setTimeout(() => reject(new Error('DB health check timeout')), timeoutMs),
         ),

@@ -102,15 +102,22 @@ export function getOutboxBackoffSchedule(): number[] {
   return values;
 }
 
-export function parseOutboxTargets(raw: string): Map<string, string> {
-  const map = new Map<string, string>();
+export function parseOutboxTargets(raw: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
   if (!raw) return map;
   for (const pair of raw.split(',')) {
     const idx = pair.indexOf('>');
     if (idx === -1) continue;
     const eventType = pair.slice(0, idx).trim();
     const url = pair.slice(idx + 1).trim();
-    if (eventType && url) map.set(eventType, url);
+    if (eventType && url) {
+      const existing = map.get(eventType);
+      if (existing) {
+        existing.push(url);
+      } else {
+        map.set(eventType, [url]);
+      }
+    }
   }
   return map;
 }

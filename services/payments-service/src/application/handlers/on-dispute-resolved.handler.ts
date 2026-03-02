@@ -1,8 +1,10 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { EventHandler } from '../../shared/event-handler.interface';
+import { SideEffectHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
+import { PrismaService } from '../../adapters/db/prisma.service';
+import { PaymentIntentRepository } from '../../adapters/db/payment-intent.repository';
+import { PaymentEventRepository } from '../../adapters/db/payment-event.repository';
 import { OutboxService } from '../../shared/outbox.service';
 import { PSP_ADAPTER, PspAdapter } from '../../adapters/psp/psp.interface';
 import { withTimeout } from '../../shared/psp-timeout';
@@ -16,27 +18,21 @@ const disputeResolvedPayloadSchema = z.object({
   refundAmountKgs: z.number().int().positive().optional(),
 });
 
-interface PaymentIntentRow {
-  id: string;
-  booking_id: string;
-  payer_id: string;
-  amount_kgs: number;
-  currency: string;
-  status: string;
-  psp_intent_id: string | null;
-}
-
 @Injectable()
-export class OnDisputeResolvedHandler implements EventHandler {
+export class OnDisputeResolvedHandler implements SideEffectHandler {
   readonly eventType = 'dispute.resolved';
+  readonly hasSideEffects = true as const;
   private readonly logger = new Logger(OnDisputeResolvedHandler.name);
 
   constructor(
+    private readonly prisma: PrismaService,
+    private readonly intentRepo: PaymentIntentRepository,
+    private readonly eventRepo: PaymentEventRepository,
     private readonly outboxService: OutboxService,
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
+  async handle(event: EventEnvelope): Promise<void> {
     const parsed = disputeResolvedPayloadSchema.safeParse(event.payload);
     if (!parsed.success) {
       this.logger.warn({
@@ -58,15 +54,8 @@ export class OnDisputeResolvedHandler implements EventHandler {
       return;
     }
 
-    const intents = await tx.$queryRaw<PaymentIntentRow[]>`
-      SELECT id, booking_id, payer_id, amount_kgs, currency, status, psp_intent_id
-      FROM payment_intents
-      WHERE booking_id = ${p.bookingId}::uuid
-      FOR UPDATE
-    `;
-    const row = intents[0];
-
-    if (!row) {
+    const intent = await this.intentRepo.findByBookingId(p.bookingId);
+    if (!intent) {
       this.logger.log({
         msg: 'No payment intent for dispute',
         bookingId: p.bookingId,
@@ -75,7 +64,7 @@ export class OnDisputeResolvedHandler implements EventHandler {
       return;
     }
 
-    if (row.status === 'REFUNDED') {
+    if (intent.status === 'REFUNDED') {
       this.logger.log({
         msg: 'Payment already refunded',
         bookingId: p.bookingId,
@@ -84,47 +73,48 @@ export class OnDisputeResolvedHandler implements EventHandler {
       return;
     }
 
-    if (row.status !== 'CAPTURED') {
+    if (intent.status !== 'CAPTURED') {
       this.logger.warn({
         msg: 'Cannot refund: payment not captured',
         bookingId: p.bookingId,
-        status: row.status,
+        status: intent.status,
         traceId: event.traceId,
       });
       return;
     }
 
     const refundAmount =
-      p.resolution === 'PARTIAL' && p.refundAmountKgs ? p.refundAmountKgs : row.amount_kgs;
+      p.resolution === 'PARTIAL' && p.refundAmountKgs ? p.refundAmountKgs : intent.amountKgs;
 
-    if (refundAmount <= 0 || refundAmount > row.amount_kgs) {
+    if (refundAmount <= 0 || refundAmount > intent.amountKgs) {
       this.logger.warn({
         msg: 'Invalid refund amount',
         refundAmount,
-        originalAmount: row.amount_kgs,
+        originalAmount: intent.amountKgs,
         traceId: event.traceId,
       });
       throw new DataCorruptionError(
-        `Invalid refund amount: ${refundAmount} exceeds original ${row.amount_kgs}`,
+        `Invalid refund amount: ${refundAmount} exceeds original ${intent.amountKgs}`,
       );
     }
 
-    if (!row.psp_intent_id) {
-      throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+    if (!intent.pspIntentId) {
+      throw new DataCorruptionError(`Payment intent ${intent.id} missing psp_intent_id`);
     }
 
+    // --- PSP calls OUTSIDE any DB transaction ---
     const env = loadEnv();
 
-    const pspStatus = await withTimeout(this.psp.getStatus(row.psp_intent_id), env.PSP_TIMEOUT_MS);
+    const pspStatus = await withTimeout(this.psp.getStatus(intent.pspIntentId), env.PSP_TIMEOUT_MS);
     if (pspStatus.status === 'refunded') {
       this.logger.warn({
         msg: 'PSP already refunded (dispute), syncing local state',
-        paymentIntentId: row.id,
+        paymentIntentId: intent.id,
         traceId: event.traceId,
       });
     } else {
       try {
-        await withTimeout(this.psp.refund(row.psp_intent_id, refundAmount), env.PSP_TIMEOUT_MS);
+        await withTimeout(this.psp.refund(intent.pspIntentId, refundAmount), env.PSP_TIMEOUT_MS);
       } catch (error) {
         this.logger.error({
           msg: 'PSP refund failed for dispute',
@@ -136,37 +126,54 @@ export class OnDisputeResolvedHandler implements EventHandler {
       }
     }
 
-    await tx.paymentIntent.update({
-      where: { id: row.id },
-      data: { status: 'REFUNDED' },
-    });
+    // --- Finalize in a short TX: lock, validate, update, publish outbox ---
+    await this.prisma.$transaction(
+      async (tx) => {
+        const locked = await this.intentRepo.findByIdForUpdate(intent.id, tx);
+        if (!locked || locked.status === 'REFUNDED') return;
 
-    await tx.paymentEvent.create({
-      data: {
-        paymentIntentId: row.id,
-        type: 'REFUNDED',
-        payloadJson: {
-          reason: 'dispute_resolved',
-          disputeId: p.disputeId,
-          resolution: p.resolution,
-          refundAmountKgs: refundAmount,
-          triggeredBy: event.eventType,
-        },
-      },
-    });
+        if (locked.status !== 'CAPTURED') {
+          this.logger.warn({
+            msg: 'State changed between PSP refund and finalization',
+            intentId: intent.id,
+            currentStatus: locked.status,
+            traceId: event.traceId,
+          });
+          return;
+        }
 
-    await this.outboxService.publish(
-      {
-        eventType: 'payment.refunded',
-        payload: {
-          paymentIntentId: row.id,
-          bookingId: p.bookingId,
-          amountKgs: refundAmount,
-          disputeId: p.disputeId,
-        },
-        traceId: event.traceId,
+        await this.intentRepo.updateStatus(intent.id, 'REFUNDED', tx);
+
+        await this.eventRepo.create(
+          {
+            paymentIntentId: intent.id,
+            type: 'REFUNDED',
+            payloadJson: {
+              reason: 'dispute_resolved',
+              disputeId: p.disputeId,
+              resolution: p.resolution,
+              refundAmountKgs: refundAmount,
+              triggeredBy: event.eventType,
+            },
+          },
+          tx,
+        );
+
+        await this.outboxService.publish(
+          {
+            eventType: 'payment.refunded',
+            payload: {
+              paymentIntentId: intent.id,
+              bookingId: p.bookingId,
+              amountKgs: refundAmount,
+              disputeId: p.disputeId,
+            },
+            traceId: event.traceId,
+          },
+          tx,
+        );
       },
-      tx,
+      { timeout: 10_000 },
     );
 
     this.logger.log({

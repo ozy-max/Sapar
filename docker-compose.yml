@@ -107,6 +107,8 @@ services:
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
       ADMIN_BASE_URL: http://admin-service:3005
       CONFIG_BASE_URL: http://admin-service:3005
+      SEED_ADMIN_EMAIL: admin@sapar.kg
+      SEED_ADMIN_PASSWORD: SaparAdmin2026!SecurePass
     depends_on:
       identity-postgres:
         condition: service_healthy
@@ -158,7 +160,7 @@ services:
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET:?Set EVENTS_HMAC_SECRET in .env.docker}
-      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.expired>http://payments-service:3003/internal/events,trip.cancelled>http://payments-service:3003/internal/events,trip.completed>http://profiles-service:3006/internal/events
+      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.cancelled>http://notifications-service:3004/internal/events,booking.expired>http://payments-service:3003/internal/events,booking.expired>http://notifications-service:3004/internal/events,trip.cancelled>http://payments-service:3003/internal/events,trip.completed>http://profiles-service:3006/internal/events
       BOOKING_TTL_SEC: 900
       EXPIRATION_WORKER_INTERVAL_MS: 1000
       REDIS_URL: redis://trips-redis:6379/0
@@ -294,7 +296,7 @@ services:
       LOG_LEVEL: info
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
-      OUTBOX_TARGETS: ''
+      OUTBOX_TARGETS: dispute.resolved>http://payments-service:3003/internal/events
       SLA_RESOLVE_HOURS: 12
     depends_on:
       admin-postgres:

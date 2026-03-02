@@ -4,7 +4,10 @@ import { z } from 'zod';
 import { PrismaService } from '../../db/prisma.service';
 import { ConsumedEventRepository } from '../../db/consumed-event.repository';
 import { EventEnvelope } from '../../../shared/event-envelope';
-import { EventHandler } from '../../../shared/event-handler.interface';
+import {
+  AnyEventHandler,
+  isSideEffectHandler,
+} from '../../../shared/event-handler.interface';
 import { HmacGuard } from '../guards/hmac.guard';
 import { ZodValidationPipe } from '../pipes/zod-validation.pipe';
 import { HandleBookingCreatedHandler } from '../../../application/handlers/handle-booking-created.handler';
@@ -26,7 +29,7 @@ const eventEnvelopeSchema = z.object({
 @Controller('internal/events')
 export class InternalEventsController {
   private readonly logger = new Logger(InternalEventsController.name);
-  private readonly handlerMap: Map<string, EventHandler>;
+  private readonly handlerMap: Map<string, AnyEventHandler>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,7 +39,7 @@ export class InternalEventsController {
     bookingCancelledHandler: OnBookingCancelledHandler,
     disputeResolvedHandler: OnDisputeResolvedHandler,
   ) {
-    this.handlerMap = new Map<string, EventHandler>([
+    this.handlerMap = new Map<string, AnyEventHandler>([
       [bookingCreatedHandler.eventType, bookingCreatedHandler],
       [bookingConfirmedHandler.eventType, bookingConfirmedHandler],
       [bookingCancelledHandler.eventType, bookingCancelledHandler],
@@ -64,29 +67,44 @@ export class InternalEventsController {
       return { status: 'duplicate' };
     }
 
-    await this.prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        try {
-          await this.consumedRepo.create(
-            {
-              eventId: envelope.eventId,
-              eventType: envelope.eventType,
-              producer: envelope.producer,
-              traceId: envelope.traceId,
-            },
-            tx,
-          );
-        } catch (error) {
-          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            return;
+    if (isSideEffectHandler(handler)) {
+      // Two-phase: record consumed event first, then handler manages own TXs.
+      // If handler fails, reconciliation worker catches stuck intents.
+      // Handler is idempotent via state-machine checks.
+      const isDuplicate = await this.recordConsumedEvent(envelope);
+      if (isDuplicate) {
+        recordConsumerEvent(envelope.eventType, 'duplicate');
+        return { status: 'duplicate' };
+      }
+      await handler.handle(envelope);
+    } else {
+      await this.prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          try {
+            await this.consumedRepo.create(
+              {
+                eventId: envelope.eventId,
+                eventType: envelope.eventType,
+                producer: envelope.producer,
+                traceId: envelope.traceId,
+              },
+              tx,
+            );
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              return;
+            }
+            throw error;
           }
-          throw error;
-        }
 
-        await handler.handle(envelope, tx);
-      },
-      { timeout: 15_000 },
-    );
+          await handler.handle(envelope, tx);
+        },
+        { timeout: 15_000 },
+      );
+    }
 
     recordConsumerEvent(envelope.eventType, 'processed');
     this.logger.log({
@@ -98,5 +116,30 @@ export class InternalEventsController {
     });
 
     return { status: 'processed' };
+  }
+
+  private async recordConsumedEvent(envelope: EventEnvelope): Promise<boolean> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.consumedRepo.create(
+          {
+            eventId: envelope.eventId,
+            eventType: envelope.eventType,
+            producer: envelope.producer,
+            traceId: envelope.traceId,
+          },
+          tx,
+        );
+      });
+      return false;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return true;
+      }
+      throw error;
+    }
   }
 }

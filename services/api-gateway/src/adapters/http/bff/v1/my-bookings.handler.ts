@@ -1,8 +1,11 @@
+import { Logger } from '@nestjs/common';
 import { getMyBookings } from '../clients/trips.client';
 import { batchPaymentSummary } from '../clients/payments.client';
 import { mapBffError } from '../mappers/bff-error.mapper';
 import { MyBookingsResponseDto, MyBookingItemDto } from '../dto/bff.dto';
 import { PaymentSummary } from '../clients/payments.client';
+
+const logger = new Logger('MyBookingsHandler');
 
 interface MyBookingsInput {
   status?: string;
@@ -27,8 +30,12 @@ export async function handleMyBookings(input: MyBookingsInput): Promise<MyBookin
       try {
         const paymentsResp = await batchPaymentSummary(bookingIds, input.headers);
         paymentMap = new Map(paymentsResp.data.items.map((p) => [p.bookingId, p]));
-      } catch {
-        // Payment data is best-effort for listing; continue without it
+      } catch (error: unknown) {
+        logger.warn({
+          msg: 'batch_payment_summary_best_effort_failed',
+          traceId: input.traceId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 

@@ -1,24 +1,16 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { EventHandler } from '../../shared/event-handler.interface';
+import { SideEffectHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
+import { PrismaService } from '../../adapters/db/prisma.service';
+import { PaymentIntentRepository } from '../../adapters/db/payment-intent.repository';
+import { PaymentEventRepository } from '../../adapters/db/payment-event.repository';
 import { OutboxService } from '../../shared/outbox.service';
 import { PSP_ADAPTER, PspAdapter } from '../../adapters/psp/psp.interface';
 import { withTimeout } from '../../shared/psp-timeout';
 import { loadEnv } from '../../config/env';
 import { recordSagaOutcome } from '../../observability/saga-metrics';
 import { DataCorruptionError } from '../../shared/errors';
-
-interface PaymentIntentRow {
-  id: string;
-  booking_id: string;
-  payer_id: string;
-  amount_kgs: number;
-  currency: string;
-  status: string;
-  psp_intent_id: string | null;
-}
 
 const bookingConfirmedPayloadSchema = z.object({
   bookingId: z.string().uuid(),
@@ -27,16 +19,20 @@ const bookingConfirmedPayloadSchema = z.object({
 });
 
 @Injectable()
-export class OnBookingConfirmedHandler implements EventHandler {
+export class OnBookingConfirmedHandler implements SideEffectHandler {
   readonly eventType = 'booking.confirmed';
+  readonly hasSideEffects = true as const;
   private readonly logger = new Logger(OnBookingConfirmedHandler.name);
 
   constructor(
+    private readonly prisma: PrismaService,
+    private readonly intentRepo: PaymentIntentRepository,
+    private readonly eventRepo: PaymentEventRepository,
     private readonly outboxService: OutboxService,
     @Inject(PSP_ADAPTER) private readonly psp: PspAdapter,
   ) {}
 
-  async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
+  async handle(event: EventEnvelope): Promise<void> {
     const parsed = bookingConfirmedPayloadSchema.safeParse(event.payload);
     if (!parsed.success) {
       this.logger.warn({
@@ -49,15 +45,8 @@ export class OnBookingConfirmedHandler implements EventHandler {
     }
     const p = parsed.data;
 
-    const intents = await tx.$queryRaw<PaymentIntentRow[]>`
-      SELECT id, booking_id, payer_id, amount_kgs, currency, status, psp_intent_id
-      FROM payment_intents
-      WHERE booking_id = ${p.bookingId}::uuid
-      FOR UPDATE
-    `;
-    const row = intents[0];
-
-    if (!row) {
+    const intent = await this.intentRepo.findByBookingId(p.bookingId);
+    if (!intent) {
       this.logger.warn({
         msg: 'No payment intent found for confirmed booking',
         bookingId: p.bookingId,
@@ -66,7 +55,7 @@ export class OnBookingConfirmedHandler implements EventHandler {
       return;
     }
 
-    if (row.status === 'CAPTURED') {
+    if (intent.status === 'CAPTURED') {
       this.logger.log({
         msg: 'Already captured (idempotent)',
         bookingId: p.bookingId,
@@ -76,23 +65,24 @@ export class OnBookingConfirmedHandler implements EventHandler {
       return;
     }
 
-    if (row.status !== 'HOLD_PLACED') {
+    if (intent.status !== 'HOLD_PLACED') {
       this.logger.log({
         msg: 'Cannot capture: intent not in HOLD_PLACED state',
         bookingId: p.bookingId,
-        currentStatus: row.status,
+        currentStatus: intent.status,
         traceId: event.traceId,
       });
       return;
     }
 
-    if (!row.psp_intent_id) {
-      throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+    if (!intent.pspIntentId) {
+      throw new DataCorruptionError(`Payment intent ${intent.id} missing psp_intent_id`);
     }
 
+    // --- PSP call OUTSIDE any DB transaction ---
     const env = loadEnv();
     try {
-      await withTimeout(this.psp.capture(row.psp_intent_id), env.PSP_TIMEOUT_MS);
+      await withTimeout(this.psp.capture(intent.pspIntentId), env.PSP_TIMEOUT_MS);
     } catch (error) {
       this.logger.error({
         msg: 'PSP capture failed, will retry via event re-delivery',
@@ -104,47 +94,61 @@ export class OnBookingConfirmedHandler implements EventHandler {
       throw error;
     }
 
-    await tx.paymentIntent.update({
-      where: { id: row.id },
-      data: { status: 'CAPTURED' },
-    });
+    // --- Finalize in a short TX: lock, validate, update, publish outbox ---
+    await this.prisma.$transaction(
+      async (tx) => {
+        const locked = await this.intentRepo.findByIdForUpdate(intent.id, tx);
+        if (!locked || locked.status !== 'HOLD_PLACED') {
+          this.logger.warn({
+            msg: 'State changed between PSP call and finalization, skipping DB update',
+            intentId: intent.id,
+            currentStatus: locked?.status,
+            traceId: event.traceId,
+          });
+          return;
+        }
 
-    await tx.paymentEvent.create({
-      data: {
-        paymentIntentId: row.id,
-        type: 'CAPTURED',
-        payloadJson: { triggeredBy: event.eventType },
-      },
-    });
+        await this.intentRepo.updateStatus(intent.id, 'CAPTURED', tx);
 
-    await tx.receipt.create({
-      data: {
-        paymentIntentId: row.id,
-        status: 'PENDING',
-        nextRetryAt: new Date(),
-      },
-    });
+        await this.eventRepo.create(
+          {
+            paymentIntentId: intent.id,
+            type: 'CAPTURED',
+            payloadJson: { triggeredBy: event.eventType },
+          },
+          tx,
+        );
 
-    await this.outboxService.publish(
-      {
-        eventType: 'payment.captured',
-        payload: {
-          paymentIntentId: row.id,
-          bookingId: p.bookingId,
-          passengerId: p.passengerId,
-          amountKgs: row.amount_kgs,
-        },
-        traceId: event.traceId,
+        await tx.receipt.create({
+          data: {
+            paymentIntentId: intent.id,
+            status: 'PENDING',
+            nextRetryAt: new Date(),
+          },
+        });
+
+        await this.outboxService.publish(
+          {
+            eventType: 'payment.captured',
+            payload: {
+              paymentIntentId: intent.id,
+              bookingId: p.bookingId,
+              passengerId: p.passengerId,
+              amountKgs: intent.amountKgs,
+            },
+            traceId: event.traceId,
+          },
+          tx,
+        );
       },
-      tx,
+      { timeout: 10_000 },
     );
 
     recordSagaOutcome('payments', 'capture', 'success');
-
     this.logger.log({
       msg: 'Payment captured for confirmed booking',
       bookingId: p.bookingId,
-      paymentIntentId: row.id,
+      paymentIntentId: intent.id,
       traceId: event.traceId,
     });
   }

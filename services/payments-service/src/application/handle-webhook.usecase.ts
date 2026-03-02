@@ -83,47 +83,65 @@ export class HandleWebhookUseCase {
         return;
       }
 
-      const intent = await this.intentRepo.findByPspIntentId(payload.pspIntentId);
-      if (!intent) {
-        throw new PaymentIntentNotFoundError();
-      }
+      // All state reads and updates happen inside a single TX with FOR UPDATE
+      // to prevent TOCTOU races between concurrent webhooks.
+      await this.prisma.$transaction(
+        async (tx) => {
+          const locked = await this.intentRepo.findByPspIntentIdForUpdate(
+            payload.pspIntentId,
+            tx,
+          );
+          if (!locked) {
+            throw new PaymentIntentNotFoundError();
+          }
 
-      const currentStatus = intent.status as PaymentIntentStatus;
-      if (currentStatus === mapping.intentStatus) {
-        await this.eventRepo.create({
-          paymentIntentId: intent.id,
-          type: 'WEBHOOK_RECEIVED',
-          externalEventId: payload.eventId,
-          payloadJson: payload as unknown as Prisma.InputJsonValue,
-        });
-        return;
-      }
+          const currentStatus = locked.status as PaymentIntentStatus;
 
-      if (!canTransition(currentStatus, mapping.intentStatus)) {
-        this.logger.warn(
-          `Webhook ${payload.eventId}: cannot transition ${currentStatus} -> ${mapping.intentStatus}`,
-        );
-        await this.eventRepo.create({
-          paymentIntentId: intent.id,
-          type: 'WEBHOOK_RECEIVED',
-          externalEventId: payload.eventId,
-          payloadJson: { ...payload, skipped: true } as unknown as Prisma.InputJsonValue,
-        });
-        return;
-      }
+          if (currentStatus === mapping.intentStatus) {
+            await this.eventRepo.create(
+              {
+                paymentIntentId: locked.id,
+                type: 'WEBHOOK_RECEIVED',
+                externalEventId: payload.eventId,
+                payloadJson: payload as unknown as Prisma.InputJsonValue,
+              },
+              tx,
+            );
+            return;
+          }
 
-      await this.prisma.$transaction(async (tx) => {
-        await this.intentRepo.updateStatus(intent.id, mapping.intentStatus, tx);
-        await this.eventRepo.create(
-          {
-            paymentIntentId: intent.id,
-            type: mapping.eventType,
-            externalEventId: payload.eventId,
-            payloadJson: payload as unknown as Prisma.InputJsonValue,
-          },
-          tx,
-        );
-      });
+          if (!canTransition(currentStatus, mapping.intentStatus)) {
+            this.logger.warn(
+              `Webhook ${payload.eventId}: cannot transition ${currentStatus} -> ${mapping.intentStatus}`,
+            );
+            await this.eventRepo.create(
+              {
+                paymentIntentId: locked.id,
+                type: 'WEBHOOK_RECEIVED',
+                externalEventId: payload.eventId,
+                payloadJson: {
+                  ...payload,
+                  skipped: true,
+                } as unknown as Prisma.InputJsonValue,
+              },
+              tx,
+            );
+            return;
+          }
+
+          await this.intentRepo.updateStatus(locked.id, mapping.intentStatus, tx);
+          await this.eventRepo.create(
+            {
+              paymentIntentId: locked.id,
+              type: mapping.eventType,
+              externalEventId: payload.eventId,
+              payloadJson: payload as unknown as Prisma.InputJsonValue,
+            },
+            tx,
+          );
+        },
+        { timeout: 10_000 },
+      );
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         this.logger.log(

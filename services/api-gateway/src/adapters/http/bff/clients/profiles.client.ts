@@ -19,7 +19,7 @@ export async function getDriverRatingAggregate(
   try {
     const resp = await bffFetch<ProfileAggregateResponse>('profiles', {
       baseUrl: env.PROFILES_BASE_URL,
-      path: `/profiles/${driverId}`,
+      path: `/profiles/${encodeURIComponent(driverId)}`,
       headers,
       timeoutMs: env.BFF_TIMEOUT_MS,
     });

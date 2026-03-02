@@ -23,33 +23,36 @@ export class CancelTripUseCase {
   ) {}
 
   async execute(input: CancelTripInput): Promise<{ commandId: string; status: string }> {
-    const command = await this.prisma.$transaction(async (tx) => {
-      const cmd = await this.commandRepo.create(
-        {
-          targetService: 'trips',
-          type: AdminCommandType.CANCEL_TRIP,
-          payload: { tripId: input.tripId, reason: input.reason },
-          createdBy: input.actorUserId,
-          traceId: input.traceId,
-        },
-        tx,
-      );
+    const command = await this.prisma.$transaction(
+      async (tx) => {
+        const cmd = await this.commandRepo.create(
+          {
+            targetService: 'trips',
+            type: AdminCommandType.CANCEL_TRIP,
+            payload: { tripId: input.tripId, reason: input.reason },
+            createdBy: input.actorUserId,
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
-      await this.auditLogRepo.create(
-        {
-          actorUserId: input.actorUserId,
-          actorRoles: input.actorRoles,
-          action: 'TRIP_CANCEL',
-          targetType: 'Trip',
-          targetId: input.tripId,
-          payloadJson: { reason: input.reason },
-          traceId: input.traceId,
-        },
-        tx,
-      );
+        await this.auditLogRepo.create(
+          {
+            actorUserId: input.actorUserId,
+            actorRoles: input.actorRoles,
+            action: 'TRIP_CANCEL',
+            targetType: 'Trip',
+            targetId: input.tripId,
+            payloadJson: { reason: input.reason },
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
-      return cmd;
-    });
+        return cmd;
+      },
+      { timeout: 5_000 },
+    );
 
     this.logger.log(`Trip cancel command: tripId=${input.tripId} by=${input.actorUserId}`);
 

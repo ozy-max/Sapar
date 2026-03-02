@@ -1,20 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { EventHandler } from '../../shared/event-handler.interface';
 import { EventEnvelope } from '../../shared/event-envelope';
 import { RatingEligibilityRepository } from '../../adapters/db/rating-eligibility.repository';
 
-interface ConfirmedBooking {
-  bookingId: string;
-  passengerId: string;
-}
+const confirmedBookingSchema = z.object({
+  bookingId: z.string().uuid(),
+  passengerId: z.string().uuid(),
+});
 
-interface TripCompletedPayload {
-  tripId: string;
-  driverId: string;
-  completedAt: string;
-  confirmedBookings: ConfirmedBooking[];
-}
+const tripCompletedPayloadSchema = z.object({
+  tripId: z.string().uuid(),
+  driverId: z.string().uuid(),
+  completedAt: z.string(),
+  confirmedBookings: z.array(confirmedBookingSchema),
+});
+
+type TripCompletedPayload = z.infer<typeof tripCompletedPayloadSchema>;
 
 @Injectable()
 export class OnTripCompletedHandler implements EventHandler {
@@ -24,7 +27,16 @@ export class OnTripCompletedHandler implements EventHandler {
   constructor(private readonly eligibilityRepo: RatingEligibilityRepository) {}
 
   async handle(event: EventEnvelope, tx: Prisma.TransactionClient): Promise<void> {
-    const payload = event.payload as unknown as TripCompletedPayload;
+    const parsed = tripCompletedPayloadSchema.safeParse(event.payload);
+    if (!parsed.success) {
+      this.logger.warn({
+        msg: 'Invalid trip.completed payload, skipping',
+        errors: parsed.error.flatten().fieldErrors,
+        traceId: event.traceId,
+      });
+      return;
+    }
+    const payload: TripCompletedPayload = parsed.data;
 
     if (!payload.confirmedBookings?.length) {
       this.logger.debug(`trip.completed with no confirmed bookings: tripId=${payload.tripId}`);

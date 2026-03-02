@@ -23,33 +23,36 @@ export class UnbanUserUseCase {
   ) {}
 
   async execute(input: UnbanUserInput): Promise<{ commandId: string; status: string }> {
-    const command = await this.prisma.$transaction(async (tx) => {
-      const cmd = await this.commandRepo.create(
-        {
-          targetService: 'identity',
-          type: AdminCommandType.UNBAN_USER,
-          payload: { userId: input.userId, reason: input.reason },
-          createdBy: input.actorUserId,
-          traceId: input.traceId,
-        },
-        tx,
-      );
+    const command = await this.prisma.$transaction(
+      async (tx) => {
+        const cmd = await this.commandRepo.create(
+          {
+            targetService: 'identity',
+            type: AdminCommandType.UNBAN_USER,
+            payload: { userId: input.userId, reason: input.reason },
+            createdBy: input.actorUserId,
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
-      await this.auditLogRepo.create(
-        {
-          actorUserId: input.actorUserId,
-          actorRoles: input.actorRoles,
-          action: 'USER_UNBAN',
-          targetType: 'User',
-          targetId: input.userId,
-          payloadJson: { reason: input.reason },
-          traceId: input.traceId,
-        },
-        tx,
-      );
+        await this.auditLogRepo.create(
+          {
+            actorUserId: input.actorUserId,
+            actorRoles: input.actorRoles,
+            action: 'USER_UNBAN',
+            targetType: 'User',
+            targetId: input.userId,
+            payloadJson: { reason: input.reason },
+            traceId: input.traceId,
+          },
+          tx,
+        );
 
-      return cmd;
-    });
+        return cmd;
+      },
+      { timeout: 5_000 },
+    );
 
     this.logger.log(`User unban command: userId=${input.userId} by=${input.actorUserId}`);
 

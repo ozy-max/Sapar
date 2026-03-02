@@ -48,8 +48,8 @@ describe('parseOutboxTargets', () => {
       'booking.created>http://payments:3003/events,trip.cancelled>http://notif:3004/events';
     const map = parseOutboxTargets(raw);
     expect(map.size).toBe(2);
-    expect(map.get('booking.created')).toBe('http://payments:3003/events');
-    expect(map.get('trip.cancelled')).toBe('http://notif:3004/events');
+    expect(map.get('booking.created')).toEqual(['http://payments:3003/events']);
+    expect(map.get('trip.cancelled')).toEqual(['http://notif:3004/events']);
   });
 
   it('returns empty map for empty string', () => {
@@ -59,16 +59,27 @@ describe('parseOutboxTargets', () => {
   it('skips malformed entries without ">"', () => {
     const map = parseOutboxTargets('valid>http://a,malformed-no-arrow');
     expect(map.size).toBe(1);
-    expect(map.get('valid')).toBe('http://a');
+    expect(map.get('valid')).toEqual(['http://a']);
   });
 
   it('trims whitespace from keys and urls', () => {
     const map = parseOutboxTargets(' foo > http://bar ');
-    expect(map.get('foo')).toBe('http://bar');
+    expect(map.get('foo')).toEqual(['http://bar']);
   });
 
   it('handles urls containing ">" in path', () => {
     const map = parseOutboxTargets('evt>http://host/path>extra');
-    expect(map.get('evt')).toBe('http://host/path>extra');
+    expect(map.get('evt')).toEqual(['http://host/path>extra']);
+  });
+
+  it('collects multiple URLs for the same event type', () => {
+    const raw =
+      'booking.cancelled>http://payments:3003/events,booking.cancelled>http://notif:3004/events';
+    const map = parseOutboxTargets(raw);
+    expect(map.size).toBe(1);
+    expect(map.get('booking.cancelled')).toEqual([
+      'http://payments:3003/events',
+      'http://notif:3004/events',
+    ]);
   });
 });

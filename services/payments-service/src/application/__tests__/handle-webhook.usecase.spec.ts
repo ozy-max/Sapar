@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { HandleWebhookUseCase, WebhookPayload } from '../handle-webhook.usecase';
 import { WebhookSignatureInvalidError } from '../../shared/errors';
 import { PaymentIntentStatus } from '../../domain/payment-intent.entity';
@@ -19,6 +20,7 @@ function buildMocks() {
 
   const intentRepo = {
     findByPspIntentId: jest.fn(),
+    findByPspIntentIdForUpdate: jest.fn(),
     updateStatus: jest.fn(),
   };
 
@@ -118,10 +120,10 @@ describe('HandleWebhookUseCase', () => {
       await expect(useCase.execute(payload)).resolves.toBeUndefined();
     });
 
-    it('should transition CREATED -> HOLD_PLACED for hold.succeeded', async () => {
+    it('should transition CREATED -> HOLD_PLACED for hold.succeeded (with FOR UPDATE)', async () => {
       const { useCase, eventRepo, intentRepo } = buildMocks();
       eventRepo.existsByExternalEventId.mockResolvedValue(false);
-      intentRepo.findByPspIntentId.mockResolvedValue({
+      intentRepo.findByPspIntentIdForUpdate.mockResolvedValue({
         id: 'intent-1',
         status: PaymentIntentStatus.CREATED,
       });
@@ -136,6 +138,7 @@ describe('HandleWebhookUseCase', () => {
 
       await useCase.execute(payload);
 
+      expect(intentRepo.findByPspIntentIdForUpdate).toHaveBeenCalledWith('psp-1', expect.anything());
       expect(intentRepo.updateStatus).toHaveBeenCalledWith(
         'intent-1',
         PaymentIntentStatus.HOLD_PLACED,
@@ -146,6 +149,97 @@ describe('HandleWebhookUseCase', () => {
           paymentIntentId: 'intent-1',
           type: 'HOLD_PLACED',
           externalEventId: 'evt-hold',
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('should handle P2002 duplicate as idempotent (return without error)', async () => {
+      const { useCase, eventRepo, intentRepo } = buildMocks();
+      eventRepo.existsByExternalEventId.mockResolvedValue(false);
+      intentRepo.findByPspIntentIdForUpdate.mockResolvedValue({
+        id: 'intent-1',
+        status: PaymentIntentStatus.HOLD_PLACED,
+      });
+      const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        clientVersion: '5.0.0',
+      });
+      eventRepo.create.mockRejectedValue(p2002);
+
+      const payload: WebhookPayload = {
+        eventId: 'evt-race',
+        type: 'hold.succeeded',
+        pspIntentId: 'psp-1',
+      };
+
+      await expect(useCase.execute(payload)).resolves.toBeUndefined();
+    });
+
+    it('should record WEBHOOK_RECEIVED when already at target status', async () => {
+      const { useCase, eventRepo, intentRepo } = buildMocks();
+      eventRepo.existsByExternalEventId.mockResolvedValue(false);
+      intentRepo.findByPspIntentIdForUpdate.mockResolvedValue({
+        id: 'intent-1',
+        status: PaymentIntentStatus.HOLD_PLACED,
+      });
+      eventRepo.create.mockResolvedValue({});
+
+      const payload: WebhookPayload = {
+        eventId: 'evt-hold-again',
+        type: 'hold.succeeded',
+        pspIntentId: 'psp-1',
+      };
+
+      await useCase.execute(payload);
+
+      expect(intentRepo.updateStatus).not.toHaveBeenCalled();
+      expect(eventRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentIntentId: 'intent-1',
+          type: 'WEBHOOK_RECEIVED',
+          externalEventId: 'evt-hold-again',
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('should throw PaymentIntentNotFoundError when intent missing', async () => {
+      const { useCase, eventRepo, intentRepo } = buildMocks();
+      eventRepo.existsByExternalEventId.mockResolvedValue(false);
+      intentRepo.findByPspIntentIdForUpdate.mockResolvedValue(null);
+
+      const payload: WebhookPayload = {
+        eventId: 'evt-missing',
+        type: 'hold.succeeded',
+        pspIntentId: 'psp-unknown',
+      };
+
+      await expect(useCase.execute(payload)).rejects.toThrow('Payment intent not found');
+    });
+
+    it('should skip invalid transitions and record as WEBHOOK_RECEIVED', async () => {
+      const { useCase, eventRepo, intentRepo } = buildMocks();
+      eventRepo.existsByExternalEventId.mockResolvedValue(false);
+      intentRepo.findByPspIntentIdForUpdate.mockResolvedValue({
+        id: 'intent-1',
+        status: PaymentIntentStatus.CANCELLED,
+      });
+      eventRepo.create.mockResolvedValue({});
+
+      const payload: WebhookPayload = {
+        eventId: 'evt-invalid',
+        type: 'hold.succeeded',
+        pspIntentId: 'psp-1',
+      };
+
+      await useCase.execute(payload);
+
+      expect(intentRepo.updateStatus).not.toHaveBeenCalled();
+      expect(eventRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'WEBHOOK_RECEIVED',
+          payloadJson: expect.objectContaining({ skipped: true }),
         }),
         expect.anything(),
       );

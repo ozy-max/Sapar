@@ -128,18 +128,21 @@ export class BookSeatUseCase {
 
       return result;
     } catch (error: unknown) {
-      if (
-        input.idempotencyKey &&
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const existing = await this.idempotencyRepo.findByKeyAndUser(
-          input.idempotencyKey,
-          input.passengerId,
-        );
-        if (existing) {
-          return existing.response as unknown as BookSeatOutput;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.['target'] as string[]) ?? [];
+        if (
+          input.idempotencyKey &&
+          target.some((t) => t === 'key' || t === 'idempotency_records_key_user_id_key')
+        ) {
+          const existing = await this.idempotencyRepo.findByKeyAndUser(
+            input.idempotencyKey,
+            input.passengerId,
+          );
+          if (existing) {
+            return existing.response as unknown as BookSeatOutput;
+          }
         }
+        throw new BookingExistsError();
       }
       throw error;
     }

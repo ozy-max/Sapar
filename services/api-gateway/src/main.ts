@@ -64,14 +64,13 @@ async function bootstrap(): Promise<void> {
 
   app.enableShutdownHooks();
 
-  process.on('SIGTERM', async () => {
+  const shutdown = async (): Promise<void> => {
+    await app.close();
     await closeRedisClient();
     await closeSharedDispatcher();
-  });
-  process.on('SIGINT', async () => {
-    await closeRedisClient();
-    await closeSharedDispatcher();
-  });
+  };
+  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown());
 
   await app.listen(env.PORT, '0.0.0.0');
 }

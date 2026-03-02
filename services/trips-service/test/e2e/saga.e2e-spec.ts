@@ -367,4 +367,43 @@ describe('Booking Saga E2E — trips-service', () => {
 
     expect(res.body.status).toBe('ignored');
   });
+
+  // ─── 11) Re-booking after cancellation ───
+
+  it('should allow re-booking after cancellation', async () => {
+    const { tripId, bookingId } = await createTripAndBook(ctx);
+
+    await request(ctx.app.getHttpServer())
+      .post(`/bookings/${bookingId}/cancel`)
+      .set('Authorization', auth(PASSENGER_A))
+      .expect(200);
+
+    const cancelled = await ctx.prisma.booking.findUnique({ where: { id: bookingId } });
+    expect(cancelled!.status).toBe('CANCELLED');
+
+    const rebookRes = await request(ctx.app.getHttpServer())
+      .post(`/${tripId}/book`)
+      .set('Authorization', auth(PASSENGER_A))
+      .set('x-request-id', randomUUID())
+      .send({ seats: 1 })
+      .expect(201);
+
+    expect(rebookRes.body.bookingId).toBeDefined();
+    expect(rebookRes.body.bookingId).not.toBe(bookingId);
+  });
+
+  // ─── 12) Reject parallel active bookings ───
+
+  it('should reject parallel active bookings with 409', async () => {
+    const { tripId } = await createTripAndBook(ctx);
+
+    const res = await request(ctx.app.getHttpServer())
+      .post(`/${tripId}/book`)
+      .set('Authorization', auth(PASSENGER_A))
+      .set('x-request-id', randomUUID())
+      .send({ seats: 1 })
+      .expect(409);
+
+    expect(res.body.code).toBe('BOOKING_EXISTS');
+  });
 });

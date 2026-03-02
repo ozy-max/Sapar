@@ -90,40 +90,36 @@ export class AdminCommandRepository {
     status: 'APPLIED' | 'FAILED_RETRY' | 'FAILED_FINAL',
     error?: string,
   ): Promise<AdminCommand> {
-    const command = await this.prisma.adminCommand.findUnique({
-      where: { id },
-    });
-    if (!command) {
-      throw new Error(`AdminCommand ${id} not found`);
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<AdminCommand[]>`
+        SELECT * FROM admin_commands
+        WHERE id = ${id}::uuid
+          AND status IN ('PENDING'::"AdminCommandStatus", 'FAILED_RETRY'::"AdminCommandStatus")
+        FOR UPDATE
+      `;
+      const command = rows[0];
+      if (!command) {
+        const existing = await tx.adminCommand.findUnique({ where: { id } });
+        if (!existing) throw new Error(`AdminCommand ${id} not found`);
+        return existing;
+      }
 
-    const nextTry = command.tryCount + 1;
+      const nextTry = command.tryCount + 1;
 
-    if (status === 'APPLIED') {
-      return this.prisma.adminCommand.update({
-        where: { id },
-        data: { status: 'APPLIED', tryCount: nextTry },
-      });
-    }
+      const data: Prisma.AdminCommandUpdateInput = { tryCount: nextTry };
+      if (status === 'APPLIED') {
+        data.status = 'APPLIED';
+      } else if (status === 'FAILED_FINAL') {
+        data.status = 'FAILED_FINAL';
+        data.lastError = error;
+      } else {
+        const backoffSec = Math.min(30 * Math.pow(2, nextTry - 1), 900);
+        data.status = 'FAILED_RETRY';
+        data.nextRetryAt = new Date(Date.now() + backoffSec * 1000);
+        data.lastError = error;
+      }
 
-    if (status === 'FAILED_FINAL') {
-      return this.prisma.adminCommand.update({
-        where: { id },
-        data: { status: 'FAILED_FINAL', tryCount: nextTry, lastError: error },
-      });
-    }
-
-    const backoffSec = Math.min(30 * Math.pow(2, nextTry - 1), 900);
-    const nextRetryAt = new Date(Date.now() + backoffSec * 1000);
-
-    return this.prisma.adminCommand.update({
-      where: { id },
-      data: {
-        status: 'FAILED_RETRY',
-        tryCount: nextTry,
-        nextRetryAt,
-        lastError: error,
-      },
+      return tx.adminCommand.update({ where: { id }, data });
     });
   }
 }

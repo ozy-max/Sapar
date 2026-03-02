@@ -93,6 +93,16 @@ export class PaymentIntentRepository {
     });
   }
 
+  async findByPspIntentIdForUpdate(
+    pspIntentId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<PaymentIntentRow | null> {
+    const rows = await tx.$queryRaw<PaymentIntentRow[]>`
+      SELECT * FROM payment_intents WHERE psp_intent_id = ${pspIntentId} FOR UPDATE
+    `;
+    return rows[0] ?? null;
+  }
+
   async findStuckIntents(
     staleMinutes: number,
     limit: number,
@@ -102,7 +112,7 @@ export class PaymentIntentRepository {
     return this.prisma.$queryRaw`
       SELECT id, status, psp_intent_id, created_at
       FROM payment_intents
-      WHERE status IN ('CREATED', 'HOLD_PLACED')
+      WHERE status IN ('CREATED', 'HOLD_REQUESTED', 'HOLD_PLACED', 'CAPTURED')
         AND updated_at < NOW() - INTERVAL '1 minute' * ${staleMinutes}
       ORDER BY updated_at ASC
       LIMIT ${limit}

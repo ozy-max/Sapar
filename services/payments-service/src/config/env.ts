@@ -33,6 +33,8 @@ const envSchema = z
     EVENTS_HMAC_SECRET: z.string().min(1).default('hmac-secret-for-dev-at-least-32-chars!!'),
     OUTBOX_TARGETS: z.string().default(''),
 
+    HOLD_PLACEMENT_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+
     RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
     RECONCILIATION_STALE_MINUTES: z.coerce.number().int().positive().default(10),
     RECONCILIATION_BATCH_SIZE: z.coerce.number().int().positive().default(20),
@@ -124,15 +126,22 @@ export function getOutboxBackoffSchedule(): number[] {
   return values;
 }
 
-export function parseOutboxTargets(raw: string): Map<string, string> {
-  const map = new Map<string, string>();
+export function parseOutboxTargets(raw: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
   if (!raw) return map;
   for (const pair of raw.split(',')) {
     const idx = pair.indexOf('>');
     if (idx === -1) continue;
     const eventType = pair.slice(0, idx).trim();
     const url = pair.slice(idx + 1).trim();
-    if (eventType && url) map.set(eventType, url);
+    if (eventType && url) {
+      const existing = map.get(eventType);
+      if (existing) {
+        existing.push(url);
+      } else {
+        map.set(eventType, [url]);
+      }
+    }
   }
   return map;
 }

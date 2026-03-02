@@ -79,18 +79,18 @@ describe('SearchCacheService', () => {
     });
   });
 
-  describe('isTooBoard', () => {
+  describe('isTooBroad', () => {
     it('should return true when no location filter', () => {
-      expect(SearchCacheService.isTooBoard({ limit: 50, offset: 0 })).toBe(true);
+      expect(SearchCacheService.isTooBroad({ limit: 50, offset: 0 })).toBe(true);
     });
 
     it('should return false with fromCity', () => {
-      expect(SearchCacheService.isTooBoard({ fromCity: 'Бишкек', limit: 50, offset: 0 })).toBe(false);
+      expect(SearchCacheService.isTooBroad({ fromCity: 'Бишкек', limit: 50, offset: 0 })).toBe(false);
     });
 
     it('should return false with fromCityId', () => {
       expect(
-        SearchCacheService.isTooBoard({
+        SearchCacheService.isTooBroad({
           fromCityId: '550e8400-e29b-41d4-a716-446655440001',
           limit: 50,
           offset: 0,
@@ -100,13 +100,13 @@ describe('SearchCacheService', () => {
 
     it('should return false with fromLat', () => {
       expect(
-        SearchCacheService.isTooBoard({ fromLat: 42.87, limit: 50, offset: 0 }),
+        SearchCacheService.isTooBroad({ fromLat: 42.87, limit: 50, offset: 0 }),
       ).toBe(false);
     });
 
     it('should return false with bboxMinLat', () => {
       expect(
-        SearchCacheService.isTooBoard({ bboxMinLat: 40.0, limit: 50, offset: 0 }),
+        SearchCacheService.isTooBroad({ bboxMinLat: 40.0, limit: 50, offset: 0 }),
       ).toBe(false);
     });
   });

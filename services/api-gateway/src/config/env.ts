@@ -93,6 +93,22 @@ const envSchema = z
         message: 'REDIS_TIMEOUT_MS is required in non-test environments',
       });
     }
+    if (isNonTest() && !process.env['EVENTS_HMAC_SECRET']) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EVENTS_HMAC_SECRET'],
+        message: 'EVENTS_HMAC_SECRET must be explicitly set in non-test environments',
+      });
+    }
+    const isProd = (process.env['NODE_ENV'] ?? 'development') === 'production';
+    const origins = process.env['ALLOWED_ORIGINS'];
+    if (isProd && (!origins || origins.trim() === '*')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ALLOWED_ORIGINS'],
+        message: 'ALLOWED_ORIGINS must not be wildcard (*) in production',
+      });
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;

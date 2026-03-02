@@ -78,7 +78,6 @@ model Booking {
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  @@unique([tripId, passengerId])
   @@index([status, createdAt])
   @@index([passengerId])
   @@map("bookings")

@@ -31,55 +31,60 @@ export class CaptureIntentUseCase {
   async execute(intentId: string, userId: string, traceId = ''): Promise<{ status: string }> {
     const env = loadEnv();
 
-    return this.prisma.$transaction(
+    const row = await this.prisma.$transaction(
       async (tx) => {
-        const row = await this.intentRepo.findByIdForUpdate(intentId, tx);
-        if (!row) throw new PaymentIntentNotFoundError();
-        if (row.payer_id !== userId) throw new ForbiddenPaymentError();
-        if (row.status !== 'HOLD_PLACED') {
-          throw new InvalidPaymentStateError(`Cannot capture: current status is ${row.status}`);
+        const locked = await this.intentRepo.findByIdForUpdate(intentId, tx);
+        if (!locked) throw new PaymentIntentNotFoundError();
+        if (locked.payer_id !== userId) throw new ForbiddenPaymentError();
+        if (locked.status !== 'HOLD_PLACED') {
+          throw new InvalidPaymentStateError(`Cannot capture: current status is ${locked.status}`);
         }
-
-        if (!row.psp_intent_id) {
-          throw new DataCorruptionError(`Payment intent ${row.id} missing psp_intent_id`);
+        if (!locked.psp_intent_id) {
+          throw new DataCorruptionError(`Payment intent ${locked.id} missing psp_intent_id`);
         }
+        return locked;
+      },
+      { timeout: 5000 },
+    );
 
-        try {
-          await withTimeout(this.psp.capture(row.psp_intent_id), env.PSP_TIMEOUT_MS);
-        } catch (error) {
-          this.logger.error(error, 'PSP capture failed');
-          throw new PspUnavailableError();
+    try {
+      await withTimeout(this.psp.capture(row.psp_intent_id!), env.PSP_TIMEOUT_MS);
+    } catch (error) {
+      this.logger.error(error, 'PSP capture failed');
+      throw new PspUnavailableError();
+    }
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const current = await this.intentRepo.findByIdForUpdate(intentId, tx);
+        if (!current || current.status !== 'HOLD_PLACED') {
+          this.logger.warn({
+            msg: 'Intent state changed after PSP capture',
+            intentId,
+            expected: 'HOLD_PLACED',
+            actual: current?.status,
+          });
+          return;
         }
 
         await this.intentRepo.updateStatus(intentId, 'CAPTURED', tx);
-
         await this.eventRepo.create(
-          {
-            paymentIntentId: intentId,
-            type: 'CAPTURED',
-            payloadJson: { pspIntentId: row.psp_intent_id },
-          },
+          { paymentIntentId: intentId, type: 'CAPTURED', payloadJson: { pspIntentId: row.psp_intent_id } },
           tx,
         );
-
         await this.receiptRepo.create(intentId, tx);
-
         await this.outboxService.publish(
           {
             eventType: 'payment.captured',
-            payload: {
-              paymentIntentId: intentId,
-              bookingId: row.booking_id,
-              amountKgs: row.amount_kgs,
-            },
+            payload: { paymentIntentId: intentId, bookingId: row.booking_id, amountKgs: row.amount_kgs },
             traceId,
           },
           tx,
         );
-
-        return { status: 'CAPTURED' };
       },
-      { timeout: env.PSP_TIMEOUT_MS + 5000 },
+      { timeout: 5000 },
     );
+
+    return { status: 'CAPTURED' };
   }
 }

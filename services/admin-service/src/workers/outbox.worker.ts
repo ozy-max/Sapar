@@ -118,8 +118,8 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
         const locked = await this.outboxRepo.lockById(eventId, tx);
         if (!locked) return null;
 
-        const targetUrl = targets.get(locked.event_type);
-        if (!targetUrl) {
+        const targetUrls = targets.get(locked.event_type);
+        if (!targetUrls || targetUrls.length === 0) {
           await this.outboxRepo.markSent(locked.id, tx);
           recordOutboxEvent(locked.event_type, 'sent');
           return null;
@@ -132,54 +132,73 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
 
     if (!event) return;
 
-    const targetUrl = targets.get(event.event_type)!;
-    const startMs = Date.now();
+    const targetUrls = targets.get(event.event_type)!;
     const envelope = this.buildEnvelope(event);
     const body = JSON.stringify(envelope);
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = signPayload(body, timestamp, env.EVENTS_HMAC_SECRET);
-    const breaker = this.getBreakerForTarget(targetUrl);
 
-    let deliverySuccess = false;
-    let latencyMs = 0;
-    let errorMsg = '';
+    let allSuccess = true;
+    let hasClientError = false;
+    let lastErrorMsg = '';
 
-    try {
-      await breaker.execute(
-        async () => {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
+    for (const targetUrl of targetUrls) {
+      const startMs = Date.now();
+      const breaker = this.getBreakerForTarget(targetUrl);
 
-          const response = await fetch(targetUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Event-Signature': signature,
-              'X-Event-Timestamp': String(timestamp),
-              'X-Request-Id': event.trace_id,
-            },
-            body,
-            signal: controller.signal,
-          });
+      try {
+        await breaker.execute(
+          async () => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), env.OUTBOX_DELIVERY_TIMEOUT_MS);
 
-          clearTimeout(timeout);
+            const response = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Event-Signature': signature,
+                'X-Event-Timestamp': String(timestamp),
+                'X-Request-Id': event.trace_id,
+              },
+              body,
+              signal: controller.signal,
+            });
 
-          if (!response.ok) {
-            const responseText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${responseText}`);
-          }
-        },
-        { traceId: event.trace_id },
-      );
+            clearTimeout(timeout);
 
-      latencyMs = Date.now() - startMs;
-      deliverySuccess = true;
-    } catch (err) {
-      latencyMs = Date.now() - startMs;
-      if (err instanceof CircuitOpenError) {
-        errorMsg = `Circuit breaker open for ${targetLabel(targetUrl)}`;
-      } else {
-        errorMsg = err instanceof Error ? err.message : String(err);
+            if (!response.ok) {
+              const responseText = await response.text();
+              if (response.status >= 400 && response.status < 500) {
+                hasClientError = true;
+              }
+              throw new Error(`HTTP ${response.status}: ${responseText}`);
+            }
+          },
+          { traceId: event.trace_id },
+        );
+
+        const latencyMs = Date.now() - startMs;
+        recordOutboxDelivery(targetUrl, latencyMs);
+        this.logger.log({
+          msg: 'Event delivered',
+          eventId: event.id,
+          eventType: event.event_type,
+          target: targetUrl,
+          attempt: event.try_count + 1,
+          latencyMs,
+          traceId: event.trace_id,
+        });
+      } catch (err) {
+        allSuccess = false;
+        if (err instanceof CircuitOpenError) {
+          lastErrorMsg = `Circuit breaker open for ${targetLabel(targetUrl)}`;
+        } else {
+          lastErrorMsg = err instanceof Error ? err.message : String(err);
+        }
+        recordOutboxDeliveryError(targetUrl);
+        outboundFailuresTotal
+          .labels(SERVICE_NAME, targetLabel(targetUrl), 'outbox_delivery')
+          .inc();
       }
     }
 
@@ -188,40 +207,27 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
         const current = await this.outboxRepo.lockById(eventId, tx);
         if (!current) return;
 
-        if (deliverySuccess) {
+        if (allSuccess) {
           await this.outboxRepo.markSent(event.id, tx);
           recordOutboxEvent(event.event_type, 'sent');
-          recordOutboxDelivery(targetUrl, latencyMs);
-          this.logger.log({
-            msg: 'Event delivered',
-            eventId: event.id,
-            eventType: event.event_type,
-            target: targetUrl,
-            attempt: event.try_count + 1,
-            latencyMs,
-            traceId: event.trace_id,
-          });
         } else {
           const nextTry = event.try_count + 1;
-          recordOutboxDeliveryError(targetUrl);
-          outboundFailuresTotal
-            .labels(SERVICE_NAME, targetLabel(targetUrl), 'outbox_delivery')
-            .inc();
 
-          if (nextTry >= env.OUTBOX_RETRY_N) {
-            await this.outboxRepo.markFailedFinal(event.id, nextTry, errorMsg, tx);
+          if (hasClientError || nextTry >= env.OUTBOX_RETRY_N) {
+            await this.outboxRepo.markFailedFinal(event.id, nextTry, lastErrorMsg, tx);
             recordOutboxEvent(event.event_type, 'failed_final');
             this.logger.error({
-              msg: 'Event delivery failed permanently',
+              msg: hasClientError ? 'Event delivery rejected (4xx), not retrying' : 'Event delivery failed permanently',
               eventId: event.id,
               eventType: event.event_type,
               attempt: nextTry,
+              error: lastErrorMsg,
               traceId: event.trace_id,
             });
           } else {
             const delaySec = backoff[nextTry - 1] ?? backoff[backoff.length - 1]!;
             const nextRetryAt = new Date(Date.now() + delaySec * 1000);
-            await this.outboxRepo.markFailedRetry(event.id, nextTry, nextRetryAt, errorMsg, tx);
+            await this.outboxRepo.markFailedRetry(event.id, nextTry, nextRetryAt, lastErrorMsg, tx);
             recordOutboxEvent(event.event_type, 'failed_retry');
             this.logger.warn({
               msg: 'Event delivery failed, will retry',

@@ -1,5 +1,6 @@
 export enum PaymentIntentStatus {
   CREATED = 'CREATED',
+  HOLD_REQUESTED = 'HOLD_REQUESTED',
   HOLD_PLACED = 'HOLD_PLACED',
   CAPTURED = 'CAPTURED',
   CANCELLED = 'CANCELLED',
@@ -9,6 +10,12 @@ export enum PaymentIntentStatus {
 
 const VALID_TRANSITIONS: Record<PaymentIntentStatus, PaymentIntentStatus[]> = {
   [PaymentIntentStatus.CREATED]: [
+    PaymentIntentStatus.HOLD_REQUESTED,
+    PaymentIntentStatus.HOLD_PLACED,
+    PaymentIntentStatus.CANCELLED,
+    PaymentIntentStatus.FAILED,
+  ],
+  [PaymentIntentStatus.HOLD_REQUESTED]: [
     PaymentIntentStatus.HOLD_PLACED,
     PaymentIntentStatus.CANCELLED,
     PaymentIntentStatus.FAILED,

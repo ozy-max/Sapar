@@ -41,6 +41,40 @@ function signedHeaders(body: string): Record<string, string> {
   };
 }
 
+/**
+ * Helper: send booking.created then run hold-placement worker tick
+ * so the intent transitions HOLD_REQUESTED → HOLD_PLACED.
+ */
+async function createAndPlaceHold(
+  ctx: TestContext,
+  bookingId: string,
+  traceId?: string,
+): Promise<EventEnvelope> {
+  const envelope = makeEnvelope({
+    traceId: traceId ?? randomUUID(),
+    payload: {
+      bookingId,
+      tripId: randomUUID(),
+      passengerId: PASSENGER_A,
+      seats: 1,
+      amountKgs: 5000,
+      currency: 'KGS',
+      departAt: '2025-06-15T08:00:00.000Z',
+      createdAt: new Date().toISOString(),
+    },
+  });
+  const body = JSON.stringify(envelope);
+  await request(ctx.app.getHttpServer())
+    .post('/internal/events')
+    .set(signedHeaders(body))
+    .send(envelope)
+    .expect(200);
+
+  // Worker picks up HOLD_REQUESTED and calls PSP outside TX
+  await ctx.holdWorker.doTick();
+  return envelope;
+}
+
 describe('Booking Saga E2E — payments-service', () => {
   let ctx: TestContext;
 
@@ -59,9 +93,9 @@ describe('Booking Saga E2E — payments-service', () => {
     ctx.fakePsp.setScenario('success');
   });
 
-  // ─── 1) booking.created → hold placed (PSP success) ───
+  // ─── 1) booking.created → HOLD_REQUESTED, then worker → HOLD_PLACED ───
 
-  it('should create intent and place hold on booking.created (PSP success)', async () => {
+  it('should create intent with HOLD_REQUESTED, then worker places hold', async () => {
     const bookingId = randomUUID();
     const envelope = makeEnvelope({
       payload: {
@@ -85,10 +119,15 @@ describe('Booking Saga E2E — payments-service', () => {
 
     expect(res.body.status).toBe('processed');
 
-    const intent = await ctx.prisma.paymentIntent.findUnique({
-      where: { bookingId },
-    });
+    // After booking.created, intent is HOLD_REQUESTED (PSP NOT called yet)
+    let intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
     expect(intent).not.toBeNull();
+    expect(intent!.status).toBe('HOLD_REQUESTED');
+
+    // Worker processes hold outside TX
+    await ctx.holdWorker.doTick();
+
+    intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
     expect(intent!.status).toBe('HOLD_PLACED');
     expect(intent!.pspIntentId).toBeDefined();
 
@@ -96,7 +135,7 @@ describe('Booking Saga E2E — payments-service', () => {
       where: { eventType: 'payment.intent.hold_placed' },
     });
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]!.traceId).toBe(envelope.traceId);
+    expect(outbox[0]!.traceId).toContain('hold-worker-');
 
     const payload = outbox[0]!.payloadJson as Record<string, unknown>;
     expect(payload['bookingId']).toBe(bookingId);
@@ -106,8 +145,6 @@ describe('Booking Saga E2E — payments-service', () => {
   // ─── 2) booking.created → hold failed (PSP failure) ───
 
   it('should create FAILED intent and emit payment.intent.failed on PSP failure', async () => {
-    ctx.fakePsp.setScenario('failure');
-
     const bookingId = randomUUID();
     const envelope = makeEnvelope({
       payload: {
@@ -129,9 +166,15 @@ describe('Booking Saga E2E — payments-service', () => {
       .send(envelope)
       .expect(200);
 
-    const intent = await ctx.prisma.paymentIntent.findUnique({
-      where: { bookingId },
-    });
+    // Intent is HOLD_REQUESTED after booking.created
+    let intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    expect(intent!.status).toBe('HOLD_REQUESTED');
+
+    // Worker fails PSP call
+    ctx.fakePsp.setScenario('failure');
+    await ctx.holdWorker.doTick();
+
+    intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
     expect(intent).not.toBeNull();
     expect(intent!.status).toBe('FAILED');
 
@@ -144,28 +187,11 @@ describe('Booking Saga E2E — payments-service', () => {
     expect(payload['reason']).toBeDefined();
   });
 
-  // ─── 3) booking.confirmed → capture ───
+  // ─── 3) booking.confirmed → capture (PSP outside TX) ───
 
   it('should capture payment on booking.confirmed', async () => {
     const bookingId = randomUUID();
-    const createdEnvelope = makeEnvelope({
-      payload: {
-        bookingId,
-        tripId: randomUUID(),
-        passengerId: PASSENGER_A,
-        seats: 1,
-        amountKgs: 5000,
-        currency: 'KGS',
-        departAt: '2025-06-15T08:00:00.000Z',
-        createdAt: new Date().toISOString(),
-      },
-    });
-    const createdBody = JSON.stringify(createdEnvelope);
-    await request(ctx.app.getHttpServer())
-      .post('/internal/events')
-      .set(signedHeaders(createdBody))
-      .send(createdEnvelope)
-      .expect(200);
+    const createdEnvelope = await createAndPlaceHold(ctx, bookingId);
 
     const confirmedEnvelope = makeEnvelope({
       eventId: randomUUID(),
@@ -196,28 +222,11 @@ describe('Booking Saga E2E — payments-service', () => {
     expect(outbox[0]!.traceId).toBe(createdEnvelope.traceId);
   });
 
-  // ─── 4) booking.cancelled → cancel hold ───
+  // ─── 4) booking.cancelled → cancel hold (PSP outside TX) ───
 
   it('should cancel hold on booking.cancelled', async () => {
     const bookingId = randomUUID();
-    const createdEnvelope = makeEnvelope({
-      payload: {
-        bookingId,
-        tripId: randomUUID(),
-        passengerId: PASSENGER_A,
-        seats: 1,
-        amountKgs: 5000,
-        currency: 'KGS',
-        departAt: '2025-06-15T08:00:00.000Z',
-        createdAt: new Date().toISOString(),
-      },
-    });
-    const createdBody = JSON.stringify(createdEnvelope);
-    await request(ctx.app.getHttpServer())
-      .post('/internal/events')
-      .set(signedHeaders(createdBody))
-      .send(createdEnvelope)
-      .expect(200);
+    await createAndPlaceHold(ctx, bookingId);
 
     const cancelledEnvelope = makeEnvelope({
       eventId: randomUUID(),
@@ -252,24 +261,7 @@ describe('Booking Saga E2E — payments-service', () => {
 
   it('should cancel hold on booking.expired', async () => {
     const bookingId = randomUUID();
-    const createdEnvelope = makeEnvelope({
-      payload: {
-        bookingId,
-        tripId: randomUUID(),
-        passengerId: PASSENGER_A,
-        seats: 1,
-        amountKgs: 5000,
-        currency: 'KGS',
-        departAt: '2025-06-15T08:00:00.000Z',
-        createdAt: new Date().toISOString(),
-      },
-    });
-    const createdBody = JSON.stringify(createdEnvelope);
-    await request(ctx.app.getHttpServer())
-      .post('/internal/events')
-      .set(signedHeaders(createdBody))
-      .send(createdEnvelope)
-      .expect(200);
+    await createAndPlaceHold(ctx, bookingId);
 
     const expiredEnvelope = makeEnvelope({
       eventId: randomUUID(),
@@ -299,24 +291,7 @@ describe('Booking Saga E2E — payments-service', () => {
 
   it('should not double-capture on duplicate booking.confirmed', async () => {
     const bookingId = randomUUID();
-    const createdEnvelope = makeEnvelope({
-      payload: {
-        bookingId,
-        tripId: randomUUID(),
-        passengerId: PASSENGER_A,
-        seats: 1,
-        amountKgs: 5000,
-        currency: 'KGS',
-        departAt: '2025-06-15T08:00:00.000Z',
-        createdAt: new Date().toISOString(),
-      },
-    });
-    const createdBody = JSON.stringify(createdEnvelope);
-    await request(ctx.app.getHttpServer())
-      .post('/internal/events')
-      .set(signedHeaders(createdBody))
-      .send(createdEnvelope)
-      .expect(200);
+    await createAndPlaceHold(ctx, bookingId);
 
     const confirmedEnvelope = makeEnvelope({
       eventId: randomUUID(),
@@ -358,9 +333,112 @@ describe('Booking Saga E2E — payments-service', () => {
       .send(envelope)
       .expect(200);
 
+    // Worker uses its own traceId for hold_placed, but let's verify the event is created
+    await ctx.holdWorker.doTick();
+
     const outbox = await ctx.prisma.outboxEvent.findMany({
       where: { eventType: 'payment.intent.hold_placed' },
     });
-    expect(outbox[0]!.traceId).toBe(traceId);
+    expect(outbox.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ─── 8) booking.cancelled for HOLD_REQUESTED (no PSP call needed) ───
+
+  it('should cancel HOLD_REQUESTED intent without PSP call', async () => {
+    const bookingId = randomUUID();
+    const envelope = makeEnvelope({
+      payload: {
+        bookingId,
+        tripId: randomUUID(),
+        passengerId: PASSENGER_A,
+        seats: 1,
+        amountKgs: 3000,
+        currency: 'KGS',
+        departAt: '2025-06-15T08:00:00.000Z',
+        createdAt: new Date().toISOString(),
+      },
+    });
+    const body = JSON.stringify(envelope);
+    await request(ctx.app.getHttpServer())
+      .post('/internal/events')
+      .set(signedHeaders(body))
+      .send(envelope)
+      .expect(200);
+
+    // Do NOT run worker — intent stays HOLD_REQUESTED
+    let intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    expect(intent!.status).toBe('HOLD_REQUESTED');
+
+    // Cancel
+    const cancelledEnvelope = makeEnvelope({
+      eventId: randomUUID(),
+      eventType: 'booking.cancelled',
+      payload: {
+        bookingId,
+        tripId: randomUUID(),
+        passengerId: PASSENGER_A,
+        seats: 1,
+        reason: 'USER_CANCELLED',
+      },
+    });
+    const cancelledBody = JSON.stringify(cancelledEnvelope);
+    await request(ctx.app.getHttpServer())
+      .post('/internal/events')
+      .set(signedHeaders(cancelledBody))
+      .send(cancelledEnvelope)
+      .expect(200);
+
+    intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    expect(intent!.status).toBe('CANCELLED');
+  });
+
+  // ─── 9) Full refund path: capture → cancel → refund ───
+
+  it('should refund a captured payment on booking.cancelled', async () => {
+    const bookingId = randomUUID();
+    await createAndPlaceHold(ctx, bookingId);
+
+    // Capture
+    const confirmedEnvelope = makeEnvelope({
+      eventId: randomUUID(),
+      eventType: 'booking.confirmed',
+      payload: { bookingId, tripId: randomUUID(), passengerId: PASSENGER_A },
+    });
+    const confirmedBody = JSON.stringify(confirmedEnvelope);
+    await request(ctx.app.getHttpServer())
+      .post('/internal/events')
+      .set(signedHeaders(confirmedBody))
+      .send(confirmedEnvelope)
+      .expect(200);
+
+    let intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    expect(intent!.status).toBe('CAPTURED');
+
+    // Cancel/Refund
+    const cancelledEnvelope = makeEnvelope({
+      eventId: randomUUID(),
+      eventType: 'booking.cancelled',
+      payload: {
+        bookingId,
+        tripId: randomUUID(),
+        passengerId: PASSENGER_A,
+        seats: 1,
+        reason: 'ADMIN_CANCELLED',
+      },
+    });
+    const cancelledBody = JSON.stringify(cancelledEnvelope);
+    await request(ctx.app.getHttpServer())
+      .post('/internal/events')
+      .set(signedHeaders(cancelledBody))
+      .send(cancelledEnvelope)
+      .expect(200);
+
+    intent = await ctx.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    expect(intent!.status).toBe('REFUNDED');
+
+    const outbox = await ctx.prisma.outboxEvent.findMany({
+      where: { eventType: 'payment.refunded' },
+    });
+    expect(outbox).toHaveLength(1);
   });
 });

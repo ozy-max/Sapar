@@ -22,13 +22,19 @@ export class RatingRepository {
   ): Promise<Rating> {
     const rating = await tx.rating.create({ data });
 
-    const agg = await tx.ratingAggregate.findUnique({
-      where: { userId: data.ratedUserId },
-    });
+    const rows = await tx.$queryRaw<
+      Array<{ user_id: string; rating_count: number; rating_sum: number }>
+    >`
+      SELECT user_id, rating_count, rating_sum
+      FROM rating_aggregates
+      WHERE user_id = ${data.ratedUserId}::uuid
+      FOR UPDATE
+    `;
 
+    const agg = rows[0];
     if (agg) {
-      const newCount = agg.ratingCount + 1;
-      const newSum = agg.ratingSum + data.score;
+      const newCount = agg.rating_count + 1;
+      const newSum = agg.rating_sum + data.score;
       await tx.ratingAggregate.update({
         where: { userId: data.ratedUserId },
         data: {
@@ -66,13 +72,19 @@ export class RatingRepository {
       data: { status: RatingStatus.DELETED },
     });
 
-    const agg = await tx.ratingAggregate.findUnique({
-      where: { userId: ratedUserId },
-    });
+    const rows = await tx.$queryRaw<
+      Array<{ user_id: string; rating_count: number; rating_sum: number }>
+    >`
+      SELECT user_id, rating_count, rating_sum
+      FROM rating_aggregates
+      WHERE user_id = ${ratedUserId}::uuid
+      FOR UPDATE
+    `;
 
-    if (agg && agg.ratingCount > 0) {
-      const newCount = agg.ratingCount - 1;
-      const newSum = agg.ratingSum - score;
+    const agg = rows[0];
+    if (agg && agg.rating_count > 0) {
+      const newCount = agg.rating_count - 1;
+      const newSum = agg.rating_sum - score;
       await tx.ratingAggregate.update({
         where: { userId: ratedUserId },
         data: {

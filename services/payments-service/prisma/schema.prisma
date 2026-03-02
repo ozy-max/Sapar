@@ -9,6 +9,7 @@ datasource db {
 
 enum PaymentIntentStatus {
   CREATED
+  HOLD_REQUESTED
   HOLD_PLACED
   CAPTURED
   CANCELLED
@@ -43,7 +44,7 @@ model PaymentIntent {
   currency       String              @default("KGS")
   status         PaymentIntentStatus @default(CREATED)
   pspProvider    String              @default("fake") @map("psp_provider")
-  pspIntentId    String?             @map("psp_intent_id")
+  pspIntentId    String?             @unique @map("psp_intent_id")
   idempotencyKey String?             @map("idempotency_key")
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")
@@ -53,7 +54,6 @@ model PaymentIntent {
 
   @@unique([idempotencyKey, payerId])
   @@index([status])
-  @@index([pspIntentId])
   @@index([payerId])
   @@map("payment_intents")
 }
