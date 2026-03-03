@@ -92,7 +92,7 @@ curl -fsS http://127.0.0.1:3000/health
 curl -fsS http://127.0.0.1:3000/ready
 ```
 
-## 5. Первый запуск (production)
+## 6. Первый запуск (production)
 
 ```bash
 cd /opt/sapar
@@ -107,7 +107,7 @@ curl -fsS http://127.0.0.1:3000/health
 curl -fsS http://127.0.0.1:3000/ready
 ```
 
-## 6. Обновление
+## 7. Обновление
 
 Последующие обновления выполняются автоматически через GitHub Actions. При пуше в ветку `dev` — staging, при ручном запуске workflow — production.
 
@@ -119,7 +119,7 @@ IMAGE_TAG=dev docker compose -f docker-compose.deploy.yml pull
 IMAGE_TAG=dev docker compose -f docker-compose.deploy.yml up -d
 ```
 
-## 7. Просмотр логов
+## 8. Просмотр логов
 
 ```bash
 cd /opt/sapar
