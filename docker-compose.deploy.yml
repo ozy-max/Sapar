@@ -1,0 +1,332 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_gateway']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api-gateway:
+    image: ghcr.io/${GHCR_USER}/sapar-api-gateway:${IMAGE_TAG}
+    ports:
+      - '127.0.0.1:3000:3000'
+    expose:
+      - '3000'
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@postgres:5432/sapar_gateway
+      NODE_ENV: production
+      LOG_LEVEL: info
+      IDENTITY_BASE_URL: http://identity-service:3001
+      TRIPS_BASE_URL: http://trips-service:3002
+      PAYMENTS_BASE_URL: http://payments-service:3003
+      NOTIFICATIONS_BASE_URL: http://notifications-service:3004
+      ADMIN_BASE_URL: http://admin-service:3005
+      PROFILES_BASE_URL: http://profiles-service:3006
+      HTTP_TIMEOUT_MS: 3000
+      BFF_TIMEOUT_MS: 2500
+      MAX_BODY_BYTES: 1048576
+      REDIS_URL: redis://redis:6379/0
+      REDIS_TIMEOUT_MS: 500
+      TRUST_PROXY: 'false'
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      trips-service:
+        condition: service_healthy
+      payments-service:
+        condition: service_healthy
+      notifications-service:
+        condition: service_healthy
+      admin-service:
+        condition: service_healthy
+      profiles-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  identity-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_identity
+    volumes:
+      - identity-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_identity']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  identity-service:
+    image: ghcr.io/${GHCR_USER}/sapar-identity-service:${IMAGE_TAG}
+    expose:
+      - '3001'
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@identity-postgres:5432/sapar_identity
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
+      JWT_ACCESS_TTL_SEC: ${JWT_ACCESS_TTL_SEC}
+      REFRESH_TOKEN_TTL_SEC: ${REFRESH_TOKEN_TTL_SEC}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      ADMIN_BASE_URL: http://admin-service:3005
+      CONFIG_BASE_URL: http://admin-service:3005
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@sapar.kg}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  trips-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_trips
+    volumes:
+      - trips-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_trips']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  trips-redis:
+    image: redis:7-alpine
+    volumes:
+      - trips-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  trips-service:
+    image: ghcr.io/${GHCR_USER}/sapar-trips-service:${IMAGE_TAG}
+    expose:
+      - '3002'
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@trips-postgres:5432/sapar_trips
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET:?Set EVENTS_HMAC_SECRET in .env}
+      OUTBOX_TARGETS: booking.created>http://payments-service:3003/internal/events,booking.confirmed>http://payments-service:3003/internal/events,booking.cancelled>http://payments-service:3003/internal/events,booking.cancelled>http://notifications-service:3004/internal/events,booking.expired>http://payments-service:3003/internal/events,booking.expired>http://notifications-service:3004/internal/events,trip.cancelled>http://payments-service:3003/internal/events,trip.completed>http://profiles-service:3006/internal/events
+      BOOKING_TTL_SEC: 900
+      EXPIRATION_WORKER_INTERVAL_MS: 1000
+      REDIS_URL: redis://trips-redis:6379/0
+      REDIS_TIMEOUT_MS: 500
+      SEARCH_CACHE_TTL_SEC: 15
+    depends_on:
+      trips-postgres:
+        condition: service_healthy
+      trips-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3002/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  payments-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_payments
+    volumes:
+      - payments-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_payments']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  payments-service:
+    image: ghcr.io/${GHCR_USER}/sapar-payments-service:${IMAGE_TAG}
+    expose:
+      - '3003'
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@payments-postgres:5432/sapar_payments
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      PSP_TIMEOUT_MS: 5000
+      PAYMENTS_WEBHOOK_SECRET: ${PAYMENTS_WEBHOOK_SECRET:?Set PAYMENTS_WEBHOOK_SECRET in .env}
+      RECEIPT_RETRY_N: 3
+      RECEIPT_BACKOFF_SEC_LIST: '5,30,300'
+      RECEIPT_POLL_INTERVAL_MS: 5000
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      OUTBOX_TARGETS: payment.intent.hold_placed>http://trips-service:3002/internal/events,payment.intent.failed>http://trips-service:3002/internal/events,payment.captured>http://notifications-service:3004/internal/events,payment.cancelled>http://notifications-service:3004/internal/events,payment.refunded>http://notifications-service:3004/internal/events
+    depends_on:
+      payments-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3003/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  notifications-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_notifications
+    volumes:
+      - notifications-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_notifications']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  notifications-service:
+    image: ghcr.io/${GHCR_USER}/sapar-notifications-service:${IMAGE_TAG}
+    expose:
+      - '3004'
+    environment:
+      PORT: 3004
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@notifications-postgres:5432/sapar_notifications
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      NOTIF_RETRY_N: 5
+      NOTIF_BACKOFF_SEC_LIST: '5,30,120,300,900'
+      WORKER_INTERVAL_MS: 1000
+      PROVIDER_TIMEOUT_MS: 3000
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      OUTBOX_TARGETS: ''
+    depends_on:
+      notifications-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3004/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  admin-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_admin
+    volumes:
+      - admin-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_admin']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin-service:
+    image: ghcr.io/${GHCR_USER}/sapar-admin-service:${IMAGE_TAG}
+    expose:
+      - '3005'
+    environment:
+      PORT: 3005
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@admin-postgres:5432/sapar_admin
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      OUTBOX_TARGETS: dispute.resolved>http://payments-service:3003/internal/events
+      SLA_RESOLVE_HOURS: 12
+    depends_on:
+      admin-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  profiles-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sapar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sapar_profiles
+    volumes:
+      - profiles-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'sapar', '-d', 'sapar_profiles']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  profiles-service:
+    image: ghcr.io/${GHCR_USER}/sapar-profiles-service:${IMAGE_TAG}
+    expose:
+      - '3006'
+    environment:
+      PORT: 3006
+      DATABASE_URL: postgresql://sapar:${POSTGRES_PASSWORD}@profiles-postgres:5432/sapar_profiles
+      NODE_ENV: production
+      LOG_LEVEL: info
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      EVENTS_HMAC_SECRET: ${EVENTS_HMAC_SECRET}
+      RATING_WINDOW_DAYS: 14
+    depends_on:
+      profiles-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3006/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  pgdata:
+  redisdata:
+  identity-pgdata:
+  trips-pgdata:
+  trips-redisdata:
+  payments-pgdata:
+  notifications-pgdata:
+  admin-pgdata:
+  profiles-pgdata:
