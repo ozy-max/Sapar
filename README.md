@@ -61,7 +61,8 @@ Sapar/
 │   ├── trips-service/        # trips, bookings, saga
 │   ├── payments-service/     # PSP, intents, receipts
 │   ├── notifications-service/# push, email, sms
-│   └── admin-service/        # configs, disputes, moderation
+│   ├── admin-service/        # configs, disputes, moderation
+│   └── profiles-service/     # user profiles
 ├── observability/
 │   ├── grafana/              # dashboards, provisioning
 │   └── prometheus/           # prometheus.yml
@@ -69,7 +70,9 @@ Sapar/
 ├── docs/                     # SRS, API conventions, configs
 ├── docker-compose.yml        # full stack
 ├── docker-compose.observability.yml
-└── .github/workflows/ci.yml
+└── .github/workflows/
+    ├── build-and-push.yml    # build + push images + stage deploy
+    └── deploy-prod.yml       # manual prod deploy
 ```
 
 Каждый сервис имеет единую структуру:

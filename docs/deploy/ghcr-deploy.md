@@ -96,8 +96,8 @@ curl -fsS http://127.0.0.1:3000/ready
 
 ```bash
 cd /opt/sapar
-IMAGE_TAG=main docker compose -f docker-compose.deploy.yml pull
-IMAGE_TAG=main docker compose -f docker-compose.deploy.yml up -d
+IMAGE_TAG=prod docker compose -f docker-compose.deploy.yml pull
+IMAGE_TAG=prod docker compose -f docker-compose.deploy.yml up -d
 ```
 
 Проверка:

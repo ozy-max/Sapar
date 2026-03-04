@@ -1,79 +1,32 @@
-name: Deploy to Production
+name: Deploy to PROD
 
 on:
   workflow_dispatch:
-
-permissions:
-  packages: write
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy"
+        required: false
+        default: "prod"
+        type: string
 
 jobs:
-  build-push:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service:
-          - api-gateway
-          - identity-service
-          - trips-service
-          - payments-service
-          - notifications-service
-          - admin-service
-          - profiles-service
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.GHCR_USER }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Build & push ${{ matrix.service }}
-        uses: docker/build-push-action@v6
-        with:
-          context: services/${{ matrix.service }}
-          file: services/${{ matrix.service }}/Dockerfile
-          push: true
-          tags: ghcr.io/${{ secrets.GHCR_USER }}/sapar-${{ matrix.service }}:main
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
-    needs: build-push
     runs-on: ubuntu-latest
-    environment: prod
-
     steps:
-      - name: Setup SSH
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Deploy via SSH
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -o StrictHostKeyChecking=yes \
-              -i ~/.ssh/id_ed25519 \
-              "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
-              "set -euo pipefail && \
-               cd /opt/sapar && \
-               IMAGE_TAG=main docker compose -f docker-compose.deploy.yml pull && \
-               IMAGE_TAG=main docker compose -f docker-compose.deploy.yml up -d && \
-               sleep 5 && \
-               curl -fsS http://127.0.0.1:3000/health && \
-               curl -fsS http://127.0.0.1:3000/ready"
-
-      - name: Cleanup SSH key
-        if: always()
-        shell: bash
-        run: rm -f ~/.ssh/id_ed25519
+      - name: Deploy to PROD server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          envs: IMAGE_TAG
+          script: |
+            cd /opt/sapar
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ozy-max --password-stdin
+            export IMAGE_TAG="${IMAGE_TAG}"
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}

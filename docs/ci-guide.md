@@ -2,28 +2,113 @@
 
 ## Обзор pipeline
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) запускается на каждый `push` в `main` и на каждый Pull Request.
+Проект использует подход **"deploy by Docker images only"** — на серверах нет исходного кода, только `docker-compose.yml` и `.env`. Все сервисы собираются в Docker-образы, пушатся в GHCR и деплоятся через `docker compose pull`.
 
-Pipeline состоит из трёх jobs:
+### Workflows
 
-| Job | Описание |
-|-----|----------|
-| `detect_changes` | Определяет, какие сервисы затронуты изменениями |
-| `service_ci` | Матрица: lint → typecheck → unit-тесты → e2e → Docker build для каждого затронутого сервиса |
-| `push_images` | (только `main` + наличие секретов) — push Docker-образов в реестр |
+| Файл | Триггер | Описание |
+|-------|---------|----------|
+| `build-and-push.yml` | `push` в `dev` / `main` | Сборка и push Docker-образов всех 7 сервисов + авто-деплой на STAGE (только `dev`) |
+| `deploy-prod.yml` | `workflow_dispatch` (ручной) | Деплой на PROD сервер |
 
-### Path-aware логика
+### Сервисы (matrix)
 
-Скрипт `scripts/changed-services.sh` анализирует `git diff` и строит JSON-массив затронутых сервисов:
+| Сервис | Build context | Образ в GHCR |
+|--------|--------------|--------------|
+| api-gateway | `services/api-gateway` | `ghcr.io/ozy-max/sapar-api-gateway` |
+| identity-service | `services/identity-service` | `ghcr.io/ozy-max/sapar-identity-service` |
+| trips-service | `services/trips-service` | `ghcr.io/ozy-max/sapar-trips-service` |
+| payments-service | `services/payments-service` | `ghcr.io/ozy-max/sapar-payments-service` |
+| notifications-service | `services/notifications-service` | `ghcr.io/ozy-max/sapar-notifications-service` |
+| admin-service | `services/admin-service` | `ghcr.io/ozy-max/sapar-admin-service` |
+| profiles-service | `services/profiles-service` | `ghcr.io/ozy-max/sapar-profiles-service` |
 
-| Путь | Эффект |
-|------|--------|
-| `services/api-gateway/**` | Только `api-gateway` |
-| `services/identity-service/**` | Только `identity-service` |
-| `services/trips-service/**` | Только `trips-service` |
-| `services/payments-service/**` | Только `payments-service` |
-| `services/notifications-service/**` | Только `notifications-service` |
-| `scripts/**`, `.github/**`, `docker-compose.yml` | **Все** сервисы |
+---
+
+## Тегирование образов
+
+Каждый push создаёт **два тега** на каждый образ:
+
+| Ветка | Тег окружения | SHA-тег |
+|-------|--------------|---------|
+| `dev` | `dev` | `sha-<7 символов>` |
+| `main` | `prod` | `sha-<7 символов>` |
+
+Тег `latest` **не используется**.
+
+**Примеры:**
+```
+ghcr.io/ozy-max/sapar-api-gateway:dev
+ghcr.io/ozy-max/sapar-api-gateway:sha-a1b2c3d
+ghcr.io/ozy-max/sapar-identity-service:prod
+ghcr.io/ozy-max/sapar-identity-service:sha-e4f5g6h
+```
+
+---
+
+## Авто-деплой на STAGE
+
+При push в ветку `dev`:
+1. Job `build` собирает и пушит все 7 образов с тегом `dev` и `sha-*`.
+2. Job `deploy-stage` (зависит от `build`) подключается к STAGE-серверу по SSH и выполняет:
+
+```bash
+cd /opt/sapar
+echo "$GHCR_PAT" | docker login ghcr.io -u ozy-max --password-stdin
+docker compose pull
+docker compose up -d
+docker image prune -f
+```
+
+`docker-compose.yml` на STAGE использует образы с тегом `dev`.
+
+---
+
+## Ручной деплой на PROD
+
+1. Перейдите в **Actions → Deploy to PROD → Run workflow**.
+2. Опционально укажите `image_tag` (по умолчанию `prod`).
+3. Workflow подключится к PROD-серверу по SSH и выполнит pull + restart.
+
+> `docker-compose.yml` на PROD должен использовать образы с тегом `prod` (или тем, что указан в input).
+
+---
+
+## Необходимые секреты
+
+Добавьте в **Settings → Secrets and variables → Actions**:
+
+| Секрет | Описание |
+|--------|----------|
+| `GHCR_PAT` | Personal Access Token с правами `read:packages` + `write:packages` |
+| `STAGE_SSH_HOST` | IP / hostname STAGE-сервера |
+| `STAGE_SSH_USER` | SSH-пользователь для STAGE |
+| `STAGE_SSH_KEY` | Приватный SSH-ключ для STAGE |
+| `STAGE_SSH_PORT` | SSH-порт для STAGE (обычно `22`) |
+| `PROD_SSH_HOST` | IP / hostname PROD-сервера |
+| `PROD_SSH_USER` | SSH-пользователь для PROD |
+| `PROD_SSH_KEY` | Приватный SSH-ключ для PROD |
+| `PROD_SSH_PORT` | SSH-порт для PROD (обычно `22`) |
+
+> `GITHUB_TOKEN` используется автоматически для авторизации в GHCR при сборке.
+
+---
+
+## Структура на серверах
+
+```
+/opt/sapar/
+├── docker-compose.yml   # Ссылается на GHCR-образы
+└── .env                 # Переменные окружения
+```
+
+На серверах **нет клона репозитория**. Обновление = `docker compose pull && docker compose up -d`.
+
+---
+
+## Кеширование сборки
+
+Используется Docker Buildx с GHA layer cache (`type=gha`). Каждый сервис имеет свой scope кеша, что обеспечивает изоляцию и быструю пересборку.
 
 ---
 
@@ -54,9 +139,6 @@ npx jest --runInBand --coverage \
   --coverageReporters=text-summary \
   --coverageReporters=json-summary
 
-# Проверка порога покрытия (60% по умолчанию)
-../../scripts/check-coverage.sh coverage/coverage-summary.json 60
-
 # Prisma
 npx prisma validate
 npx prisma migrate deploy
@@ -65,79 +147,14 @@ npx prisma migrate deploy
 npm run test:e2e
 ```
 
-### Проверка миграций
-
-```bash
-# Из корня репозитория
-./scripts/check-migrations.sh identity-service
-```
-
 ---
 
 ## Переменные окружения для E2E-тестов
 
 Каждый сервис задаёт значения по умолчанию в `test/e2e/helpers/env-setup.ts`.
-В CI переменные переопределяются на уровне job:
 
 | Переменная | Значение в CI | Описание |
 |-----------|--------------|----------|
 | `DATABASE_URL` | `postgresql://sapar:sapar_secret@localhost:5432/sapar_test` | Postgres (GHA services) |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis (нужен только api-gateway) |
 | `NODE_ENV` | `test` | |
-
-### Локальная подготовка БД для E2E
-
-```bash
-# Вариант 1: per-service docker-compose (у каждого сервиса свой)
-cd services/identity-service
-docker compose up -d
-
-# Вариант 2: корневой docker-compose
-docker compose up -d postgres redis
-```
-
-Порты по умолчанию (локально):
-
-| Сервис | Postgres порт | Тестовая БД |
-|--------|--------------|-------------|
-| identity-service | 5434 | `sapar_identity_test` |
-| trips-service | 5436 | `sapar_trips_test` |
-| payments-service | 5438 | `sapar_payments_test` |
-| notifications-service | 5440 | `sapar_notifications_test` |
-| api-gateway | — | Не использует реальную БД в E2E |
-
----
-
-## Порог покрытия
-
-По умолчанию: **60% lines** (MVP).
-
-Как изменить:
-- **CI**: отредактируйте `env.COVERAGE_THRESHOLD` в `.github/workflows/ci.yml`
-- **Локально**: передайте вторым аргументом в `check-coverage.sh`:
-
-```bash
-./scripts/check-coverage.sh coverage/coverage-summary.json 80
-```
-
----
-
-## Docker-образы
-
-CI собирает образ для каждого затронутого сервиса:
-- Тег: `sapar/<service>:<commit-sha>`
-- Используется Buildx с GHA layer cache
-- По умолчанию образы **не пушатся**
-- Push происходит в job `push_images` только при merge в `main` и наличии секретов
-
-### Необходимые секреты для push (опционально)
-
-| Секрет | Описание |
-|--------|----------|
-| `REGISTRY_URL` | Адрес реестра (e.g. `ghcr.io`) |
-| `REGISTRY_USERNAME` | Логин |
-| `REGISTRY_PASSWORD` | Пароль / токен |
-
-### Smoke-тест
-
-После сборки образа CI автоматически запускает контейнер и проверяет `GET /health`.
