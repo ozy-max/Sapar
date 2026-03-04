@@ -11,22 +11,13 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, prod]
     steps:
-      - name: Deploy to PROD server via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          port: ${{ secrets.PROD_SSH_PORT }}
-          envs: IMAGE_TAG
-          script: |
-            cd /opt/sapar
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ozy-max --password-stdin
-            export IMAGE_TAG="${IMAGE_TAG}"
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
+      - name: Deploy locally on PROD server
+        run: |
+          cd /opt/sapar
+          export IMAGE_TAG="${{ inputs.image_tag }}"
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ozy-max --password-stdin
+          docker compose pull
+          docker compose up -d
+          docker image prune -f

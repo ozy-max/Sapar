@@ -69,11 +69,22 @@ docker image prune -f
 
 ## Ручной деплой на PROD
 
-1. Перейдите в **Actions → Deploy to PROD → Run workflow**.
-2. Опционально укажите `image_tag` (по умолчанию `prod`).
-3. Workflow подключится к PROD-серверу по SSH и выполнит pull + restart.
+На PROD-сервере установлен self-hosted GitHub Actions runner (label: `prod`). Деплой выполняется **локально** на сервере — без SSH.
 
-> `docker-compose.yml` на PROD должен использовать образы с тегом `prod` (или тем, что указан в input).
+1. Перейдите в **Actions → Deploy to PROD → Run workflow**.
+2. Опционально укажите `image_tag` (по умолчанию `prod`, можно указать `sha-...` для конкретной версии).
+3. Job `deploy` запустится на self-hosted runner прямо на PROD-сервере и выполнит:
+
+```bash
+cd /opt/sapar
+export IMAGE_TAG="<выбранный тег>"
+echo "$GHCR_PAT" | docker login ghcr.io -u ozy-max --password-stdin
+docker compose pull
+docker compose up -d
+docker image prune -f
+```
+
+> `docker-compose.yml` на PROD должен использовать `${IMAGE_TAG:-prod}` в тегах образов.
 
 ---
 
@@ -81,15 +92,11 @@ docker image prune -f
 
 Добавьте в **Settings → Secrets and variables → Actions**:
 
-| Секрет | Используется в | Описание |
-|--------|---------------|----------|
-| `GHCR_PAT` | stage + prod deploy | Personal Access Token с правами `read:packages` + `write:packages` |
-| `PROD_SSH_HOST` | prod deploy | IP / hostname PROD-сервера |
-| `PROD_SSH_USER` | prod deploy | SSH-пользователь для PROD |
-| `PROD_SSH_KEY` | prod deploy | Приватный SSH-ключ для PROD |
-| `PROD_SSH_PORT` | prod deploy | SSH-порт для PROD (обычно `22`) |
+| Секрет | Описание |
+|--------|----------|
+| `GHCR_PAT` | Personal Access Token с правами `read:packages` + `write:packages` |
 
-> Секреты `STAGE_SSH_*` больше не нужны — stage deploy выполняется локально на self-hosted runner.
+> SSH-секреты не нужны — оба деплоя (stage и prod) выполняются локально на self-hosted runners.
 
 > `GITHUB_TOKEN` используется автоматически для авторизации в GHCR при сборке.
 
