@@ -48,19 +48,22 @@ ghcr.io/ozy-max/sapar-identity-service:sha-e4f5g6h
 
 ## Авто-деплой на STAGE
 
+На STAGE-сервере установлен self-hosted GitHub Actions runner (label: `stage`). Деплой выполняется **локально** на сервере — без SSH.
+
 При push в ветку `dev`:
-1. Job `build` собирает и пушит все 7 образов с тегом `dev` и `sha-*`.
-2. Job `deploy-stage` (зависит от `build`) подключается к STAGE-серверу по SSH и выполняет:
+1. Job `build` собирает и пушит все 7 образов с тегом `dev` и `sha-*` (GitHub-hosted runner).
+2. Job `deploy-stage` (зависит от `build`) запускается на self-hosted runner прямо на STAGE-сервере и выполняет:
 
 ```bash
 cd /opt/sapar
 echo "$GHCR_PAT" | docker login ghcr.io -u ozy-max --password-stdin
+export IMAGE_TAG=dev
 docker compose pull
 docker compose up -d
 docker image prune -f
 ```
 
-`docker-compose.yml` на STAGE использует образы с тегом `dev`.
+`docker-compose.yml` на STAGE использует образы с тегом `dev`. SSH-секреты для stage не нужны.
 
 ---
 
@@ -78,17 +81,15 @@ docker image prune -f
 
 Добавьте в **Settings → Secrets and variables → Actions**:
 
-| Секрет | Описание |
-|--------|----------|
-| `GHCR_PAT` | Personal Access Token с правами `read:packages` + `write:packages` |
-| `STAGE_SSH_HOST` | IP / hostname STAGE-сервера |
-| `STAGE_SSH_USER` | SSH-пользователь для STAGE |
-| `STAGE_SSH_KEY` | Приватный SSH-ключ для STAGE |
-| `STAGE_SSH_PORT` | SSH-порт для STAGE (обычно `22`) |
-| `PROD_SSH_HOST` | IP / hostname PROD-сервера |
-| `PROD_SSH_USER` | SSH-пользователь для PROD |
-| `PROD_SSH_KEY` | Приватный SSH-ключ для PROD |
-| `PROD_SSH_PORT` | SSH-порт для PROD (обычно `22`) |
+| Секрет | Используется в | Описание |
+|--------|---------------|----------|
+| `GHCR_PAT` | stage + prod deploy | Personal Access Token с правами `read:packages` + `write:packages` |
+| `PROD_SSH_HOST` | prod deploy | IP / hostname PROD-сервера |
+| `PROD_SSH_USER` | prod deploy | SSH-пользователь для PROD |
+| `PROD_SSH_KEY` | prod deploy | Приватный SSH-ключ для PROD |
+| `PROD_SSH_PORT` | prod deploy | SSH-порт для PROD (обычно `22`) |
+
+> Секреты `STAGE_SSH_*` больше не нужны — stage deploy выполняется локально на self-hosted runner.
 
 > `GITHUB_TOKEN` используется автоматически для авторизации в GHCR при сборке.
 

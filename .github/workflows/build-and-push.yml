@@ -76,18 +76,13 @@ jobs:
   deploy-stage:
     if: github.ref_name == 'dev'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, stage]
     steps:
-      - name: Deploy to STAGE server via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.STAGE_SSH_HOST }}
-          username: ${{ secrets.STAGE_SSH_USER }}
-          key: ${{ secrets.STAGE_SSH_KEY }}
-          port: ${{ secrets.STAGE_SSH_PORT }}
-          script: |
-            cd /opt/sapar
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ozy-max --password-stdin
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
+      - name: Deploy locally on STAGE server
+        run: |
+          cd /opt/sapar
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ozy-max --password-stdin
+          export IMAGE_TAG=dev
+          docker compose pull
+          docker compose up -d
+          docker image prune -f
